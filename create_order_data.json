@@ -1,0 +1,26 @@
+{
+    "order": {
+        "sub_account_id": "2773903555091684",
+        "is_market": true,
+        "time_in_force": "GOOD_TILL_TIME",
+        "post_only": false,
+        "reduce_only": false,
+        "legs": [
+            {
+                "instrument": "BTC_USDT_Perp",
+                "size": "0.1",
+                "limit_price": "0",
+                "is_buying_asset": true
+            }
+        ],
+        "signature": {
+            "expiration": "1767672926708000000",
+            "nonce": 1234562
+        },
+        "metadata": {
+            "client_order_id": "23044"
+        },
+        "builder": "0x66c86ac8337fc841d4495fdb1b69a209b44b2ede",
+        "builder_fee": "0.0005"
+    }
+}
