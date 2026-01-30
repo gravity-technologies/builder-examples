@@ -1,6 +1,6 @@
 {
     "order": {
-        "sub_account_id": "2773903555091684",
+        "sub_account_id": "<SUB_ACCOUNT_ID>",
         "is_market": true,
         "time_in_force": "GOOD_TILL_TIME",
         "post_only": false,
@@ -20,7 +20,7 @@
         "metadata": {
             "client_order_id": "23044"
         },
-        "builder": "0x66c86ac8337fc841d4495fdb1b69a209b44b2ede",
+        "builder": "0xBuilderAddress",
         "builder_fee": "0.0005"
     }
 }
