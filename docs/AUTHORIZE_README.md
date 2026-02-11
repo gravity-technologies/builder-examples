@@ -58,8 +58,8 @@ python authorize.py --env testnet \
 | `--api-key`                    | Existing API key to use (skips authorization)           | Conditional*   | None                 |
 | `--authorize`                  | Flag to run the authorization step                      | Conditional*   | False                |
 | `--user-privkey`               | User's main account private key (for EIP-712 signature) | If authorizing | None                 |
-| `--main-account-id`            | User's main account address (0x...)                     | If authorizing | None                 |
-| `--builder-account-id`         | Builder's main account address (0x...)                  | If authorizing | None                 |
+| `--main-account-id`            | User's funding account address (0x...)                  | If authorizing | None                 |
+| `--builder-account-id`         | Builder's funding account address (0x...)               | If authorizing | None                 |
 | `--builder-api-signer-privkey` | Fresh signer private key for the API key                | If authorizing | None                 |
 | `--permissions`                | Permission level for the API key                        | No             | `Trade`              |
 | `--builder-api-key-label`      | Label for the generated API key                         | No             | `builder-smoke-test` |
@@ -82,8 +82,8 @@ When you run with `--authorize`, the script:
 1. Generates a random nonce (32-bit unsigned integer)
 2. Calculates an expiration timestamp (7 days from now, in nanoseconds)
 3. Builds an EIP-712 typed data structure with:
-   - User's main account ID
-   - Builder's main account ID
+   - User's main account ID (funding account address)
+   - Builder's main account ID (funding account address)
    - Builder API key signer address (derived from `--builder-api-signer-privkey`)
    - Permissions (default: "Trade")
    - Maximum fee rates (converted to uint32)
@@ -195,6 +195,8 @@ Sub accounts: {...}
 
 ✅ Smoke test complete.
 ```
+
+**Note:** Once the API Key is minted, you better save it securely. There's no way to retrieve the same API key again, and you would need to re-run the authorization flow to get a new one if lost.
 
 ## API Documentation References
 
