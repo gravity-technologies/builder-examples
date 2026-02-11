@@ -225,12 +225,10 @@ def authorize_builder(
         expiration_unix_ns=expiration_ns,
         domain_chain_id=env.chain_id,
     )
-    print(typed)
 
     v, r, s = sign_eip712(user_privkey=_ensure_0x(user_privkey), typed_data=typed)
 
     url = f"{env.edge_base}/auth/builder/authorize"
-    print(permissions)
     payload = {
         "main_account_id": _ensure_0x(main_account_id),
         "builder_account_id": _ensure_0x(builder_account_id),
@@ -304,8 +302,8 @@ def main() -> int:
     p.add_argument("--api-key", help="If provided, skips authorize step and logs in directly.")
     p.add_argument("--authorize", action="store_true", help="Run builder authorize step to mint an API key.")
     p.add_argument("--user-privkey", help="User main account private key (for EIP-712 builder authorize signature).")
-    p.add_argument("--main-account-id", help="User main account address (0x...).")
-    p.add_argument("--builder-account-id", help="Builder main account address (0x...).")
+    p.add_argument("--main-account-id", help="User funding account address (0x...).")
+    p.add_argument("--builder-account-id", help="Builder funding account address (0x...).")
     p.add_argument("--builder-api-signer-privkey", help="Fresh signer privkey used by builder on behalf of user.")
     p.add_argument("--permissions", default="Trade", help='Use "Trade" (recommended by docs).')
     p.add_argument("--builder-api-key-label", default="builder-smoke-test")
