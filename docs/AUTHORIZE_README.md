@@ -46,27 +46,40 @@ python authorize.py --env testnet \
   --authorize \
   --user-privkey 0xYOUR_USERS_MAIN_ACCOUNT_PRIVKEY \
   --main-account-id 0xUSERS_MAIN_ACCOUNT_ADDRESS \
+  --builder-account-id 0xYOUR_BUILDER_MAIN_ACCOUNT_ADDRESS
+```
+
+**Note:** If you don't provide `--builder-api-signer-privkey`, a new keypair will be automatically generated and displayed. You can optionally provide your own:
+
+```bash
+# With a specific signer private key
+python authorize.py --env testnet \
+  --authorize \
+  --user-privkey 0xYOUR_USERS_MAIN_ACCOUNT_PRIVKEY \
+  --main-account-id 0xUSERS_MAIN_ACCOUNT_ADDRESS \
   --builder-account-id 0xYOUR_BUILDER_MAIN_ACCOUNT_ADDRESS \
   --builder-api-signer-privkey 0xA_FRESH_SIGNER_PRIVKEY
 ```
 
 ## Command Line Arguments
 
-| Argument                       | Description                                             | Required       | Default              |
-|--------------------------------|---------------------------------------------------------|----------------|----------------------|
-| `--env`                        | Target environment (dev/staging/testnet/prod)           | No             | `testnet`            |
-| `--api-key`                    | Existing API key to use (skips authorization)           | Conditional*   | None                 |
-| `--authorize`                  | Flag to run the authorization step                      | Conditional*   | False                |
-| `--user-privkey`               | User's main account private key (for EIP-712 signature) | If authorizing | None                 |
-| `--main-account-id`            | User's funding account address (0x...)                  | If authorizing | None                 |
-| `--builder-account-id`         | Builder's funding account address (0x...)               | If authorizing | None                 |
-| `--builder-api-signer-privkey` | Fresh signer private key for the API key                | If authorizing | None                 |
-| `--permissions`                | Permission level for the API key                        | No             | `Trade`              |
-| `--builder-api-key-label`      | Label for the generated API key                         | No             | `builder-smoke-test` |
-| `--max-futures-fee-rate`       | Maximum futures fee rate (decimal string)               | No             | `0.001`              |
-| `--max-spot-fee-rate`          | Maximum spot fee rate (decimal string)                  | No             | `0.0001`             |
+| Argument                       | Description                                                               | Required       | Default              |
+|--------------------------------|---------------------------------------------------------------------------|----------------|----------------------|
+| `--env`                        | Target environment (dev/staging/testnet/prod)                             | No             | `testnet`            |
+| `--api-key`                    | Existing API key to use (skips authorization)                             | Conditional*   | None                 |
+| `--authorize`                  | Flag to run the authorization step                                        | Conditional*   | False                |
+| `--user-privkey`               | User's main account private key (for EIP-712 signature)                   | If authorizing | None                 |
+| `--main-account-id`            | User's funding account address (0x...)                                    | If authorizing | None                 |
+| `--builder-account-id`         | Builder's funding account address (0x...)                                 | If authorizing | None                 |
+| `--builder-api-signer-privkey` | Fresh signer private key for the API key (auto-generated if not provided) | No             | Auto-generated       |
+| `--permissions`                | Permission level for the API key                                          | No             | `Trade`              |
+| `--builder-api-key-label`      | Label for the generated API key                                           | No             | `builder-smoke-test` |
+| `--max-futures-fee-rate`       | Maximum futures fee rate (decimal string)                                 | No             | `0.001`              |
+| `--max-spot-fee-rate`          | Maximum spot fee rate (decimal string)                                    | No             | `0.0001`             |
 
 \* Either provide `--api-key` OR use `--authorize` with required authorization arguments.
+
+**Note on Auto-Generated Keys:** When using `--authorize` without providing `--builder-api-signer-privkey`, the script will automatically generate a new keypair and display the private key. Make sure to save this private key securely, as you'll need it to use the API key later.
 
 **Note:** The EIP-712 domain chain ID is automatically configured based on the selected environment:
 - `dev` and `staging`: chain ID 327
@@ -79,21 +92,24 @@ python authorize.py --env testnet \
 
 When you run with `--authorize`, the script:
 
-1. Generates a random nonce (32-bit unsigned integer)
-2. Calculates an expiration timestamp (7 days from now, in nanoseconds)
-3. Builds an EIP-712 typed data structure with:
+1. **Generates a builder API signer keypair** (if `--builder-api-signer-privkey` is not provided):
+   - Creates a new Ethereum keypair using `Account.create()`
+   - Displays the private key and address with clear warnings to save it securely
+2. Generates a random nonce (32-bit unsigned integer)
+3. Calculates an expiration timestamp (7 days from now, in nanoseconds)
+4. Builds an EIP-712 typed data structure with:
    - User's main account ID (funding account address)
    - Builder's main account ID (funding account address)
-   - Builder API key signer address (derived from `--builder-api-signer-privkey`)
+   - Builder API key signer address (derived from the private key)
    - Permissions (default: "Trade")
    - Maximum fee rates (converted to uint32)
    - Nonce and expiration
-4. Signs the typed data with the user's private key
-5. Sends a POST request to `/auth/builder/authorize` with:
+5. Signs the typed data with the user's private key
+6. Sends a POST request to `/auth/builder/authorize` with:
    - The signature components (v, r, s)
    - Account IDs and fee rates
    - Builder API key label and signer address
-6. Returns the generated API key
+7. Returns the generated API key
 
 **EIP-712 Domain:**
 ```json
@@ -143,7 +159,8 @@ With the authenticated session:
 - **Never commit private keys to version control**
 - Store API keys securely (use environment variables or a secrets manager)
 - Use environment variables or secure key management systems for sensitive data
-- The `builder-api-signer-privkey` should be a fresh keypair generated specifically for this purpose
+- The `builder-api-signer-privkey` should be a fresh keypair generated specifically for this purpose (the script can auto-generate one for you)
+- **Save the auto-generated private key immediately** - it's displayed only once and cannot be retrieved later
 - Private keys are converted to lowercase hex format automatically
 
 ### Permissions
@@ -166,6 +183,11 @@ If GRVT uses a different scaling factor, you may need to adjust the conversion i
 The script provides detailed HTTP request/response information for debugging:
 
 ```
+🔑 Generated new builder API signer keypair:
+   Private Key: 0x1234567890abcdef...
+   Address: 0xABCD1234...
+   ⚠️  Save this private key securely - you'll need it to use the API key!
+
 == Authorize Builder ==
 URL: POST https://edge.testnet.grvt.io/auth/builder/authorize
 Status: 200
@@ -241,7 +263,8 @@ pip install --upgrade eth-account
 - `--user-privkey`
 - `--main-account-id`
 - `--builder-account-id`
-- `--builder-api-signer-privkey`
+
+Note: `--builder-api-signer-privkey` is optional and will be auto-generated if not provided.
 
 ## Exit Codes
 
@@ -257,6 +280,15 @@ pip install --upgrade eth-account
 export USER_PRIVKEY="0x..."
 export MAIN_ACCOUNT="0x..."
 export BUILDER_ACCOUNT="0x..."
+
+# Option 1: Let the script auto-generate a signer keypair
+python authorize.py --env testnet \
+  --authorize \
+  --user-privkey "$USER_PRIVKEY" \
+  --main-account-id "$MAIN_ACCOUNT" \
+  --builder-account-id "$BUILDER_ACCOUNT"
+
+# Option 2: Provide your own signer private key
 export BUILDER_SIGNER_PRIVKEY="0x..."
 
 python authorize.py --env testnet \
