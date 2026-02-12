@@ -25,8 +25,10 @@ B) Full flow (authorize -> login -> get_sub_accounts):
     --authorize \
     --user-privkey 0xYOUR_USERS_MAIN_ACCOUNT_PRIVKEY \
     --main-account-id 0xUSERS_MAIN_ACCOUNT_ADDRESS \
-    --builder-account-id 0xYOUR_BUILDER_MAIN_ACCOUNT_ADDRESS \
-    --builder-api-signer-privkey 0xA_FRESH_SIGNER_PRIVKEY
+    --builder-account-id 0xYOUR_BUILDER_MAIN_ACCOUNT_ADDRESS
+
+  # Optionally provide a specific signer private key (otherwise auto-generated):
+  # --builder-api-signer-privkey 0xA_FRESH_SIGNER_PRIVKEY
 
 Notes:
 - The authorize step MUST be signed by the user's main account private key (EIP-712). :contentReference[oaicite:3]{index=3}
@@ -304,7 +306,7 @@ def main() -> int:
     p.add_argument("--user-privkey", help="User main account private key (for EIP-712 builder authorize signature).")
     p.add_argument("--main-account-id", help="User funding account address (0x...).")
     p.add_argument("--builder-account-id", help="Builder funding account address (0x...).")
-    p.add_argument("--builder-api-signer-privkey", help="Fresh signer privkey used by builder on behalf of user.")
+    p.add_argument("--builder-api-signer-privkey", help="Fresh signer privkey used by builder on behalf of user. If not provided, a new keypair will be generated.")
     p.add_argument("--permissions", default="Trade", help='Use "Trade" (recommended by docs).')
     p.add_argument("--builder-api-key-label", default="builder-smoke-test")
     p.add_argument("--max-futures-fee-rate", default="0.001")
@@ -315,18 +317,28 @@ def main() -> int:
     api_key = args.api_key
 
     if args.authorize:
-        missing = [k for k in ["user_privkey", "main_account_id", "builder_account_id", "builder_api_signer_privkey"]
+        missing = [k for k in ["user_privkey", "main_account_id", "builder_account_id"]
                    if getattr(args, k) in (None, "")]
         if missing:
             print(f"Missing required args for --authorize: {', '.join(missing)}", file=sys.stderr)
             return 2
+
+        # Generate a new keypair if builder_api_signer_privkey is not provided
+        builder_api_signer_privkey = args.builder_api_signer_privkey
+        if not builder_api_signer_privkey:
+            new_account = Account.create()
+            builder_api_signer_privkey = new_account.key.hex()
+            print(f"\n🔑 Generated new builder API signer keypair:")
+            print(f"   Private Key: {builder_api_signer_privkey}")
+            print(f"   Address: {new_account.address}")
+            print("   ⚠️  Save this private key securely - you'll need it to use the API key!\n")
 
         api_key = authorize_builder(
             env,
             main_account_id=args.main_account_id,
             builder_account_id=args.builder_account_id,
             user_privkey=args.user_privkey,
-            builder_api_key_signer_privkey=args.builder_api_signer_privkey,
+            builder_api_key_signer_privkey=builder_api_signer_privkey,
             builder_api_key_label=args.builder_api_key_label,
             permissions=args.permissions,
             max_futures_fee_rate=args.max_futures_fee_rate,
