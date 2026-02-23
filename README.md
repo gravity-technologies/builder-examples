@@ -36,7 +36,7 @@ pip install requests eth-account
 
 ### 1. Generate an API Key
 
-First, authorize a builder to generate an API key:
+Authorize a builder to generate an API key (use this when the builder needs to trade on behalf of the user):
 
 ```bash
 python authorize.py \
@@ -49,6 +49,17 @@ python authorize.py \
 ```
 
 This will output an API key (e.g., `grvt_api_...`) that you'll use for authenticated requests.
+
+Alternatively, to authorize a builder's fee rates without creating an API key:
+
+```bash
+python authorize.py \
+  --env testnet \
+  --authorize-only \
+  --user-privkey 0xYOUR_USER_PRIVATE_KEY \
+  --main-account-id 0xYOUR_MAIN_ACCOUNT_ADDRESS \
+  --builder-account-id 0xBUILDER_ACCOUNT_ADDRESS
+```
 
 **📖 See [docs/AUTHORIZE_README.md](docs/AUTHORIZE_README.md) for complete documentation**
 
@@ -73,7 +84,7 @@ python grvt_create_order_api.py \
 **Purpose:** Generate API keys by authorizing a builder to act on behalf of a user's account.
 
 **Key Features:**
-- EIP-712 signature-based authorization
+- EIP-712 signature-based authorization (two paths: with or without API key creation)
 - Multi-environment support (dev, staging, testnet, prod)
 - Automatic chain ID configuration per environment
 - Session cookie and account ID extraction
@@ -84,12 +95,18 @@ python grvt_create_order_api.py \
 # With existing API key
 python authorize.py --env testnet --api-key YOUR_API_KEY
 
-# Full authorization flow
+# Authorize and create API key (AddAccountSignerWithBuilder)
 python authorize.py --env testnet --authorize \
   --user-privkey 0x... \
   --main-account-id 0x... \
   --builder-account-id 0x... \
   --builder-api-signer-privkey 0x...
+
+# Authorize builder without API key (AuthorizeBuilder)
+python authorize.py --env testnet --authorize-only \
+  --user-privkey 0x... \
+  --main-account-id 0x... \
+  --builder-account-id 0x...
 ```
 
 **Chain ID Configuration:**
@@ -326,12 +343,18 @@ python authorize.py --help
 # Test with API key
 python authorize.py --env testnet --api-key YOUR_API_KEY
 
-# Full authorization
+# Authorize and create API key (AddAccountSignerWithBuilder)
 python authorize.py --env testnet --authorize \
   --user-privkey 0x... \
   --main-account-id 0x... \
   --builder-account-id 0x... \
   --builder-api-signer-privkey 0x...
+
+# Authorize builder without API key (AuthorizeBuilder)
+python authorize.py --env testnet --authorize-only \
+  --user-privkey 0x... \
+  --main-account-id 0x... \
+  --builder-account-id 0x...
 ```
 
 ### grvt_create_order_api.py Commands
