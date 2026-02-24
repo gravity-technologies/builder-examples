@@ -6,6 +6,7 @@ A collection of Python scripts demonstrating integration with GRVT's Builder Cod
 
 This repository contains example scripts for:
 - **Builder Authorization** - Generate API keys through EIP-712 signature authorization
+- **Wallet Login** - Authenticate using an EIP-712 wallet signature (no API key required)
 - **Order Creation** - Create and submit authenticated orders to the GRVT Trading API
 
 These examples demonstrate the complete flow from user authorization to order execution, following GRVT's official API documentation.
@@ -15,10 +16,12 @@ These examples demonstrate the complete flow from user authorization to order ex
 ```
 builder-examples/
 ├── authorize.py                  # Builder authorization & API key generation
+├── wallet_login.py              # EIP-712 wallet login (main signing wallet)
 ├── grvt_create_order_api.py     # Order creation with API key authentication
 ├── create_order_data.json       # Sample order data
 ├── docs/
 │   ├── AUTHORIZE_README.md      # Detailed authorize.py documentation
+│   ├── WALLET_LOGIN_README.md   # Detailed wallet_login.py documentation
 │   └── CREATE_ORDER_README.md   # Detailed order creation documentation
 └── README.md                    # This file
 ```
@@ -118,7 +121,38 @@ python authorize.py --env testnet --authorize-only \
 
 ---
 
-### 2. grvt_create_order_api.py - Order Creation
+### 2. wallet_login.py - Wallet Login
+
+**Purpose:** Authenticate directly with a main wallet private key using EIP-712, without needing a pre-minted API key.
+
+**Key Features:**
+- EIP-712 `WalletLogin` signature (primary type: `WalletLogin(address signer, uint32 nonce, int64 expiration)`)
+- Replay prevention via server-side nonce consumption (Redis SETNX)
+- Short-lived signatures (max 5 minutes, server-enforced)
+- Session cookie and account ID extraction
+
+**Quick Example:**
+```bash
+# Login and verify session
+python wallet_login.py --env testnet \
+  --wallet-privkey 0xYOUR_WALLET_PRIVATE_KEY
+
+# Login only (no verification)
+python wallet_login.py --env testnet \
+  --wallet-privkey 0xYOUR_WALLET_PRIVATE_KEY \
+  --no-verify
+```
+
+**Chain ID Configuration:**
+- dev/staging: 327
+- testnet: 326
+- prod: 325
+
+**📖 Full Documentation:** [docs/WALLET_LOGIN_README.md](docs/WALLET_LOGIN_README.md)
+
+---
+
+### 3. grvt_create_order_api.py - Order Creation
 
 **Purpose:** Create and submit signed orders to the GRVT Trading API using API key authentication.
 
@@ -356,6 +390,24 @@ python authorize.py --env testnet --authorize-only \
   --main-account-id 0x... \
   --builder-account-id 0x...
 ```
+
+### wallet_login.py Commands
+
+```bash
+# Get help
+python wallet_login.py --help
+
+# Login and verify session
+python wallet_login.py --env testnet \
+  --wallet-privkey 0xYOUR_WALLET_PRIVATE_KEY
+
+# Login only (skip verification)
+python wallet_login.py --env testnet \
+  --wallet-privkey 0xYOUR_WALLET_PRIVATE_KEY \
+  --no-verify
+```
+
+---
 
 ### grvt_create_order_api.py Commands
 
