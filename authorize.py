@@ -3,9 +3,10 @@
 GRVT Builder Codes / Trading API smoke test
 
 What this script can do:
-1) (Optional) Authorize a builder for a user (EIP-712 signature) -> returns an api_key
-2) Login with api_key -> returns session cookie (gravity=...) + X-Grvt-Account-Id header
-3) Call Trading API: full/v1/get_sub_accounts (authenticated) -> prints subaccounts
+1) (Optional) Authorize a builder for a user WITH API key creation (EIP-712 AddAccountSignerWithBuilder) -> returns an api_key
+2) (Optional) Authorize a builder for a user WITHOUT API key creation (EIP-712 AuthorizeBuilder) -> no api_key returned
+3) Login with api_key -> returns session cookie (gravity=...) + X-Grvt-Account-Id header
+4) Call Trading API: full/v1/get_sub_accounts (authenticated) -> prints subaccounts
 
 Docs used:
 - Builder authorize endpoints + EIP-712 payload shape: https://api-docs.grvt.io/builder_codes/  :contentReference[oaicite:0]{index=0}
@@ -18,10 +19,10 @@ Install:
 Examples:
 
 A) If you already have an API key:
-  python grvt_test.py --env testnet --api-key YOUR_API_KEY
+  python authorize.py --env testnet --api-key YOUR_API_KEY
 
-B) Full flow (authorize -> login -> get_sub_accounts):
-  python grvt_test.py --env testnet \
+B) Full flow with API key creation (authorize -> login -> get_sub_accounts):
+  python authorize.py --env testnet \
     --authorize \
     --user-privkey 0xYOUR_USERS_MAIN_ACCOUNT_PRIVKEY \
     --main-account-id 0xUSERS_MAIN_ACCOUNT_ADDRESS \
@@ -30,9 +31,18 @@ B) Full flow (authorize -> login -> get_sub_accounts):
   # Optionally provide a specific signer private key (otherwise auto-generated):
   # --builder-api-signer-privkey 0xA_FRESH_SIGNER_PRIVKEY
 
+C) Authorize builder without API key creation:
+  python authorize.py --env testnet \
+    --authorize-only \
+    --user-privkey 0xYOUR_USERS_MAIN_ACCOUNT_PRIVKEY \
+    --main-account-id 0xUSERS_MAIN_ACCOUNT_ADDRESS \
+    --builder-account-id 0xYOUR_BUILDER_MAIN_ACCOUNT_ADDRESS
+
 Notes:
 - The authorize step MUST be signed by the user's main account private key (EIP-712). :contentReference[oaicite:3]{index=3}
 - Permissions: docs say “Please use TRADE for now”. :contentReference[oaicite:4]{index=4}
+- Use --authorize when you need an API key for the builder to trade on behalf of the user.
+- Use --authorize-only when you only need to register the builder's fee rates without granting trading permissions.
 """
 
 from __future__ import annotations
@@ -164,6 +174,46 @@ def build_eip712_payload(
     }
 
 
+def build_eip712_payload_authorize_only(
+    main_account_id: str,
+    builder_account_id: str,
+    max_future_fee_rate_uint32: int,
+    max_spot_fee_rate_uint32: int,
+    nonce_uint32: int,
+    expiration_unix_ns: int,
+    domain_chain_id: int,
+) -> Dict[str, Any]:
+    """EIP-712 payload for AuthorizeBuilder (no API key creation)."""
+    # "AuthorizeBuilder(address mainAccountID,address builderAccountID,uint32 maxFutureFeeRate,uint32 maxSpotFeeRate,uint32 nonce,int64 expiration)"
+    return {
+        "domain": {"chainId": domain_chain_id, "name": "GRVT Exchange", "version": "0"},
+        "message": {
+            "mainAccountID": main_account_id,
+            "builderAccountID": builder_account_id,
+            "maxFutureFeeRate": max_future_fee_rate_uint32,
+            "maxSpotFeeRate": max_spot_fee_rate_uint32,
+            "nonce": nonce_uint32,
+            "expiration": expiration_unix_ns,
+        },
+        "primaryType": "AuthorizeBuilder",
+        "types": {
+            "EIP712Domain": [
+                {"name": "name", "type": "string"},
+                {"name": "version", "type": "string"},
+                {"name": "chainId", "type": "uint256"},
+            ],
+            "AuthorizeBuilder": [
+                {"name": "mainAccountID", "type": "address"},
+                {"name": "builderAccountID", "type": "address"},
+                {"name": "maxFutureFeeRate", "type": "uint32"},
+                {"name": "maxSpotFeeRate", "type": "uint32"},
+                {"name": "nonce", "type": "uint32"},
+                {"name": "expiration", "type": "int64"},
+            ],
+        },
+    }
+
+
 def sign_eip712(user_privkey: str, typed_data: Dict[str, Any]) -> Tuple[int, str, str]:
     if encode_typed_data is None and encode_structured_data is None:
         raise RuntimeError("eth-account is missing encode_typed_data/encode_structured_data; try upgrading eth-account.")
@@ -204,6 +254,10 @@ def authorize_builder(
     builder_api_key_signer_privkey = _ensure_0x(builder_api_key_signer_privkey)
     signer_addr = Account.from_key(builder_api_key_signer_privkey).address
 
+    # Get the public address from user_privkey for the signature signer field
+    user_privkey_normalized = _ensure_0x(user_privkey)
+    user_address = Account.from_key(user_privkey_normalized).address
+
     # Docs show maxFutureFeeRate/maxSpotFeeRate are uint32 in the signing payload. :contentReference[oaicite:9]{index=9}
     # The request params are "string"; examples show decimals. :contentReference[oaicite:10]{index=10}
     # For the typed payload we need uint32. Without a clear scaling rule in this page, we let you pass integers
@@ -227,8 +281,7 @@ def authorize_builder(
         expiration_unix_ns=expiration_ns,
         domain_chain_id=env.chain_id,
     )
-
-    v, r, s = sign_eip712(user_privkey=_ensure_0x(user_privkey), typed_data=typed)
+    v, r, s = sign_eip712(user_privkey=user_privkey_normalized, typed_data=typed)
 
     url = f"{env.edge_base}/auth/builder/authorize"
     payload = {
@@ -237,7 +290,7 @@ def authorize_builder(
         "max_futures_fee_rate": max_futures_fee_rate,
         "max_spot_fee_rate": max_spot_fee_rate,
         "signature": {
-            "signer": _ensure_0x(main_account_id),
+            "signer": _ensure_0x(user_address),
             "r": r,
             "s": s,
             "v": v,
@@ -259,6 +312,65 @@ def authorize_builder(
     if not api_key:
         raise RuntimeError("authorize response missing api_key")
     return api_key
+
+
+def authorize_builder_only(
+    env: EnvConfig,
+    *,
+    main_account_id: str,
+    builder_account_id: str,
+    user_privkey: str,
+    max_futures_fee_rate: str = "0.001",
+    max_spot_fee_rate: str = "0.0001",
+) -> None:
+    """
+    Calls: POST {edge}/auth/builder/authorize (without API key creation)
+    Sends an AuthorizeBuilder chain transaction. No API key is returned.
+    Use this when you only need to authorize a builder's fee rates without
+    granting trading permissions via an API key.
+    """
+    # Get the public address from user_privkey for the signature signer field
+    user_privkey_normalized = _ensure_0x(user_privkey)
+    user_address = Account.from_key(user_privkey_normalized).address
+
+    mf_uint32 = int(float(max_futures_fee_rate) * 10_000)
+    ms_uint32 = int(float(max_spot_fee_rate) * 10_000)
+
+    nonce = secrets.randbelow(2**32)
+    expiration_ns = int((time.time() + 7 * 24 * 3600) * 1e9)
+
+    typed = build_eip712_payload_authorize_only(
+        main_account_id=_ensure_0x(main_account_id),
+        builder_account_id=_ensure_0x(builder_account_id),
+        max_future_fee_rate_uint32=mf_uint32,
+        max_spot_fee_rate_uint32=ms_uint32,
+        nonce_uint32=nonce,
+        expiration_unix_ns=expiration_ns,
+        domain_chain_id=env.chain_id,
+    )
+    v, r, s = sign_eip712(user_privkey=user_privkey_normalized, typed_data=typed)
+
+    url = f"{env.edge_base}/auth/builder/authorize"
+    payload = {
+        "main_account_id": _ensure_0x(main_account_id),
+        "builder_account_id": _ensure_0x(builder_account_id),
+        "max_futures_fee_rate": max_futures_fee_rate,
+        "max_spot_fee_rate": max_spot_fee_rate,
+        "signature": {
+            "signer": _ensure_0x(user_address),
+            "r": r,
+            "s": s,
+            "v": v,
+            "expiration": str(expiration_ns),
+            "nonce": nonce,
+            "chain_id": str(env.chain_id),
+        },
+    }
+    print(json.dumps(payload))
+
+    resp = requests.post(url, json=payload, timeout=30)
+    _print_http("Authorize Builder (no API key)", resp)
+    resp.raise_for_status()
 
 
 def login_with_api_key(env: EnvConfig, api_key: str) -> Tuple[str, str]:
@@ -302,7 +414,8 @@ def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--env", choices=ENVS.keys(), default="testnet")
     p.add_argument("--api-key", help="If provided, skips authorize step and logs in directly.")
-    p.add_argument("--authorize", action="store_true", help="Run builder authorize step to mint an API key.")
+    p.add_argument("--authorize", action="store_true", help="Run builder authorize step to mint an API key (requires signer + permissions).")
+    p.add_argument("--authorize-only", action="store_true", help="Authorize builder on-chain without creating an API key (no signer required).")
     p.add_argument("--user-privkey", help="User main account private key (for EIP-712 builder authorize signature).")
     p.add_argument("--main-account-id", help="User funding account address (0x...).")
     p.add_argument("--builder-account-id", help="Builder funding account address (0x...).")
@@ -315,6 +428,24 @@ def main() -> int:
 
     env = ENVS[args.env]
     api_key = args.api_key
+
+    if args.authorize_only:
+        missing = [k for k in ["user_privkey", "main_account_id", "builder_account_id"]
+                   if getattr(args, k) in (None, "")]
+        if missing:
+            print(f"Missing required args for --authorize-only: {', '.join(missing)}", file=sys.stderr)
+            return 2
+
+        authorize_builder_only(
+            env,
+            main_account_id=args.main_account_id,
+            builder_account_id=args.builder_account_id,
+            user_privkey=args.user_privkey,
+            max_futures_fee_rate=args.max_futures_fee_rate,
+            max_spot_fee_rate=args.max_spot_fee_rate,
+        )
+        print("\n✅ Builder authorized (no API key created).")
+        return 0
 
     if args.authorize:
         missing = [k for k in ["user_privkey", "main_account_id", "builder_account_id"]

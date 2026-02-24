@@ -6,6 +6,7 @@ A collection of Python scripts demonstrating integration with GRVT's Builder Cod
 
 This repository contains example scripts for:
 - **Builder Authorization** - Generate API keys through EIP-712 signature authorization
+- **Wallet Login** - Authenticate using an EIP-712 wallet signature (no API key required)
 - **Order Creation** - Create and submit authenticated orders to the GRVT Trading API
 
 These examples demonstrate the complete flow from user authorization to order execution, following GRVT's official API documentation.
@@ -15,10 +16,12 @@ These examples demonstrate the complete flow from user authorization to order ex
 ```
 builder-examples/
 ├── authorize.py                  # Builder authorization & API key generation
+├── wallet_login.py              # EIP-712 wallet login (main signing wallet)
 ├── grvt_create_order_api.py     # Order creation with API key authentication
 ├── create_order_data.json       # Sample order data
 ├── docs/
 │   ├── AUTHORIZE_README.md      # Detailed authorize.py documentation
+│   ├── WALLET_LOGIN_README.md   # Detailed wallet_login.py documentation
 │   └── CREATE_ORDER_README.md   # Detailed order creation documentation
 └── README.md                    # This file
 ```
@@ -34,25 +37,52 @@ builder-examples/
 pip install requests eth-account
 ```
 
-### 1. Generate an API Key
+### 1. Wallet Login → get `funding_account_address`
 
-First, authorize a builder to generate an API key:
+Login with the user's main wallet to obtain their `funding_account_address` (used as `main_account_id` in the next step):
+
+```bash
+python wallet_login.py \
+  --env testnet \
+  --wallet-privkey 0xYOUR_USER_WALLET_PRIVATE_KEY \
+  --no-verify
+
+# Output includes:
+#   Funding account address: 0xabc123...   ← use this as --main-account-id below
+```
+
+**📖 See [docs/WALLET_LOGIN_README.md](docs/WALLET_LOGIN_README.md) for complete documentation**
+
+### 2. Generate an API Key → `main_account_id` = `funding_account_address` from step 1
+
+Authorize a builder to generate an API key (use this when the builder needs to trade on behalf of the user):
 
 ```bash
 python authorize.py \
   --env testnet \
   --authorize \
-  --user-privkey 0xYOUR_USER_PRIVATE_KEY \
-  --main-account-id 0xYOUR_MAIN_ACCOUNT_ADDRESS \
+  --user-privkey 0xYOUR_USER_WALLET_PRIVATE_KEY \
+  --main-account-id 0xFUNDING_ACCOUNT_ADDRESS \
   --builder-account-id 0xBUILDER_ACCOUNT_ADDRESS \
   --builder-api-signer-privkey 0xFRESH_SIGNER_PRIVATE_KEY
 ```
 
 This will output an API key (e.g., `grvt_api_...`) that you'll use for authenticated requests.
 
+Alternatively, to authorize a builder's fee rates without creating an API key:
+
+```bash
+python authorize.py \
+  --env testnet \
+  --authorize-only \
+  --user-privkey 0xYOUR_USER_WALLET_PRIVATE_KEY \
+  --main-account-id 0xFUNDING_ACCOUNT_ADDRESS \
+  --builder-account-id 0xBUILDER_ACCOUNT_ADDRESS
+```
+
 **📖 See [docs/AUTHORIZE_README.md](docs/AUTHORIZE_README.md) for complete documentation**
 
-### 2. Create an Order
+### 3. Create an Order
 
 Use the generated API key to create and submit orders:
 
@@ -68,12 +98,42 @@ python grvt_create_order_api.py \
 
 ## Scripts
 
-### 1. authorize.py - Builder Authorization
+### 1. wallet_login.py - Wallet Login
 
-**Purpose:** Generate API keys by authorizing a builder to act on behalf of a user's account.
+**Purpose:** Authenticate with the user's main wallet using EIP-712. Returns a session cookie and off-chain account ID for API access, and `funding_account_address` which is used as `--main-account-id` in the authorize step.
 
 **Key Features:**
-- EIP-712 signature-based authorization
+- EIP-712 `WalletLogin` signature (primary type: `WalletLogin(address signer, uint32 nonce, int64 expiration)`)
+- Returns `funding_account_address` in response body — use as `main_account_id` in `authorize.py`
+- Replay prevention via server-side nonce consumption (Redis SETNX)
+- Short-lived signatures (max 5 minutes, server-enforced)
+
+**Quick Example:**
+```bash
+# Login and get funding_account_address (= main_account_id for authorize step)
+python wallet_login.py --env testnet \
+  --wallet-privkey 0xYOUR_WALLET_PRIVATE_KEY \
+  --no-verify
+
+# Output includes:
+#   Funding account address: 0xabc123...   ← pass as --main-account-id to authorize.py
+```
+
+**Chain ID Configuration:**
+- dev/staging: 327
+- testnet: 326
+- prod: 325
+
+**📖 Full Documentation:** [docs/WALLET_LOGIN_README.md](docs/WALLET_LOGIN_README.md)
+
+---
+
+### 2. authorize.py - Builder Authorization
+
+**Purpose:** Authorize a builder to act on behalf of a user's account. Uses `funding_account_address` from wallet login as `--main-account-id`.
+
+**Key Features:**
+- EIP-712 signature-based authorization (two paths: with or without API key creation)
 - Multi-environment support (dev, staging, testnet, prod)
 - Automatic chain ID configuration per environment
 - Session cookie and account ID extraction
@@ -81,15 +141,19 @@ python grvt_create_order_api.py \
 
 **Quick Example:**
 ```bash
-# With existing API key
-python authorize.py --env testnet --api-key YOUR_API_KEY
-
-# Full authorization flow
+# Authorize and create API key (AddAccountSignerWithBuilder)
+# --main-account-id = funding_account_address from wallet_login
 python authorize.py --env testnet --authorize \
   --user-privkey 0x... \
-  --main-account-id 0x... \
+  --main-account-id 0xFUNDING_ACCOUNT_ADDRESS \
   --builder-account-id 0x... \
   --builder-api-signer-privkey 0x...
+
+# Authorize builder without API key (AuthorizeBuilder)
+python authorize.py --env testnet --authorize-only \
+  --user-privkey 0x... \
+  --main-account-id 0xFUNDING_ACCOUNT_ADDRESS \
+  --builder-account-id 0x...
 ```
 
 **Chain ID Configuration:**
@@ -101,7 +165,7 @@ python authorize.py --env testnet --authorize \
 
 ---
 
-### 2. grvt_create_order_api.py - Order Creation
+### 3. grvt_create_order_api.py - Order Creation
 
 **Purpose:** Create and submit signed orders to the GRVT Trading API using API key authentication.
 
@@ -149,23 +213,36 @@ All scripts support multiple GRVT environments:
 
 Use `--env` flag to select the environment (default: `testnet`).
 
-## Complete Workflow Example
+## Complete Integration Flow
 
-Here's a complete workflow from authorization to order creation:
+Here's the recommended end-to-end flow from wallet login through to order creation:
 
-### Step 1: Authorization (One-time setup)
+### Step 1: Login with user's wallet → get `funding_account_address`
 
 ```bash
-# Set environment variables for security
-export USER_PRIVKEY="0x..."
-export MAIN_ACCOUNT="0x..."
-export BUILDER_ACCOUNT="0x..."
-export BUILDER_SIGNER_PRIVKEY="0x..."
+export USER_WALLET_PRIVKEY="0x..."   # User's main signing wallet private key
 
-# Generate API key
+python wallet_login.py --env testnet \
+  --wallet-privkey "$USER_WALLET_PRIVKEY" \
+  --no-verify
+
+# Output includes:
+#   Funding account address: 0xabc123...   ← this is your main_account_id
+#
+# Set it for the next step:
+export MAIN_ACCOUNT="0xabc123..."    # funding_account_address from step 1 output
+```
+
+### Step 2: Authorize builder → `main_account_id` = `funding_account_address` from step 1
+
+```bash
+export BUILDER_ACCOUNT="0x..."          # Builder's funding account address
+export BUILDER_SIGNER_PRIVKEY="0x..."   # Fresh keypair for the API key (auto-generated if omitted)
+
+# --main-account-id is the funding_account_address returned by wallet_login above
 python authorize.py --env testnet \
   --authorize \
-  --user-privkey "$USER_PRIVKEY" \
+  --user-privkey "$USER_WALLET_PRIVKEY" \
   --main-account-id "$MAIN_ACCOUNT" \
   --builder-account-id "$BUILDER_ACCOUNT" \
   --builder-api-signer-privkey "$BUILDER_SIGNER_PRIVKEY"
@@ -174,7 +251,7 @@ python authorize.py --env testnet \
 export GRVT_API_KEY="grvt_api_..."
 ```
 
-### Step 2: Create Your Order Data
+### Step 3: Create orders
 
 Edit `create_order_data.json`:
 
@@ -207,7 +284,7 @@ Edit `create_order_data.json`:
 }
 ```
 
-### Step 3: Submit the Order
+### Step 4: Submit the Order
 
 ```bash
 export ORDER_SIGNING_KEY="0x..."  # Private key for signing orders
@@ -317,22 +394,41 @@ These examples are provided as-is for testing and integration purposes with GRVT
 
 ## Quick Reference
 
+### wallet_login.py Commands
+
+```bash
+# Get help
+python wallet_login.py --help
+
+# Login and get funding_account_address (= main_account_id for authorize step)
+python wallet_login.py --env testnet \
+  --wallet-privkey 0xYOUR_WALLET_PRIVATE_KEY \
+  --no-verify
+```
+
+---
+
 ### authorize.py Commands
 
 ```bash
 # Get help
 python authorize.py --help
 
-# Test with API key
-python authorize.py --env testnet --api-key YOUR_API_KEY
-
-# Full authorization
+# Authorize and create API key (--main-account-id = funding_account_address from wallet_login)
 python authorize.py --env testnet --authorize \
   --user-privkey 0x... \
-  --main-account-id 0x... \
+  --main-account-id 0xFUNDING_ACCOUNT_ADDRESS \
   --builder-account-id 0x... \
   --builder-api-signer-privkey 0x...
+
+# Authorize builder without API key
+python authorize.py --env testnet --authorize-only \
+  --user-privkey 0x... \
+  --main-account-id 0xFUNDING_ACCOUNT_ADDRESS \
+  --builder-account-id 0x...
 ```
+
+---
 
 ### grvt_create_order_api.py Commands
 

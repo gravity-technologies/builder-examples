@@ -6,9 +6,17 @@ A Python script for testing the GRVT Builder integration flow, including authori
 
 This script (`authorize.py`) demonstrates the complete flow for integrating with GRVT's Builder Codes system:
 
-1. **Authorization**: Generate an API key by having a user authorize a builder (using EIP-712 signature)
-2. **Login**: Authenticate using the API key to obtain a session cookie
-3. **API Access**: Call authenticated Trading API endpoints (e.g., `get_sub_accounts`)
+1. **Authorization (with API key)**: Generate an API key by having a user authorize a builder via `AddAccountSignerWithBuilder` (EIP-712 signature) — use `--authorize`
+2. **Authorization (without API key)**: Authorize a builder's fee rates on-chain via `AuthorizeBuilder` (EIP-712 signature) without creating an API key — use `--authorize-only`
+3. **Login**: Authenticate using the API key to obtain a session cookie
+4. **API Access**: Call authenticated Trading API endpoints (e.g., `get_sub_accounts`)
+
+### When to use each authorization path
+
+| Path | Flag | Creates API key | EIP-712 type | Use when |
+|------|------|-----------------|--------------|----------|
+| With API key | `--authorize` | Yes | `AddAccountSignerWithBuilder` | Builder needs to trade on behalf of the user |
+| Without API key | `--authorize-only` | No | `AuthorizeBuilder` | Only registering the builder's fee rates |
 
 ## Prerequisites
 
@@ -37,7 +45,7 @@ If you already have an API key, you can skip the authorization step:
 python authorize.py --env testnet --api-key YOUR_API_KEY
 ```
 
-### Option B: Full Authorization Flow
+### Option B: Full Authorization Flow (with API key)
 
 Generate a new API key and test the complete flow:
 
@@ -61,23 +69,38 @@ python authorize.py --env testnet \
   --builder-api-signer-privkey 0xA_FRESH_SIGNER_PRIVKEY
 ```
 
+### Option C: Authorize Builder Without API Key
+
+Authorize a builder's fee rates on-chain without creating an API key. No signer keypair is needed:
+
+```bash
+python authorize.py --env testnet \
+  --authorize-only \
+  --user-privkey 0xYOUR_USERS_MAIN_ACCOUNT_PRIVKEY \
+  --main-account-id 0xUSERS_MAIN_ACCOUNT_ADDRESS \
+  --builder-account-id 0xYOUR_BUILDER_MAIN_ACCOUNT_ADDRESS
+```
+
+This sends an `AuthorizeBuilder` chain transaction and exits without proceeding to the login step.
+
 ## Command Line Arguments
 
-| Argument                       | Description                                                               | Required       | Default              |
-|--------------------------------|---------------------------------------------------------------------------|----------------|----------------------|
-| `--env`                        | Target environment (dev/staging/testnet/prod)                             | No             | `testnet`            |
-| `--api-key`                    | Existing API key to use (skips authorization)                             | Conditional*   | None                 |
-| `--authorize`                  | Flag to run the authorization step                                        | Conditional*   | False                |
-| `--user-privkey`               | User's main account private key (for EIP-712 signature)                   | If authorizing | None                 |
-| `--main-account-id`            | User's funding account address (0x...)                                    | If authorizing | None                 |
-| `--builder-account-id`         | Builder's funding account address (0x...)                                 | If authorizing | None                 |
-| `--builder-api-signer-privkey` | Fresh signer private key for the API key (auto-generated if not provided) | No             | Auto-generated       |
-| `--permissions`                | Permission level for the API key                                          | No             | `Trade`              |
-| `--builder-api-key-label`      | Label for the generated API key                                           | No             | `builder-smoke-test` |
-| `--max-futures-fee-rate`       | Maximum futures fee rate (decimal string)                                 | No             | `0.001`              |
-| `--max-spot-fee-rate`          | Maximum spot fee rate (decimal string)                                    | No             | `0.0001`             |
+| Argument                       | Description                                                               | Required                       | Default              |
+|--------------------------------|---------------------------------------------------------------------------|--------------------------------|----------------------|
+| `--env`                        | Target environment (dev/staging/testnet/prod)                             | No                             | `testnet`            |
+| `--api-key`                    | Existing API key to use (skips authorization)                             | Conditional*                   | None                 |
+| `--authorize`                  | Authorize builder and create an API key (with signer + permissions)       | Conditional*                   | False                |
+| `--authorize-only`             | Authorize builder on-chain without creating an API key                    | Conditional*                   | False                |
+| `--user-privkey`               | User's main account private key (for EIP-712 signature)                   | If authorizing                 | None                 |
+| `--main-account-id`            | User's funding account address (0x...)                                    | If authorizing                 | None                 |
+| `--builder-account-id`         | Builder's funding account address (0x...)                                 | If authorizing                 | None                 |
+| `--builder-api-signer-privkey` | Fresh signer private key for the API key (auto-generated if not provided) | No (`--authorize` only)        | Auto-generated       |
+| `--permissions`                | Permission level for the API key                                          | No (`--authorize` only)        | `Trade`              |
+| `--builder-api-key-label`      | Label for the generated API key                                           | No (`--authorize` only)        | `builder-smoke-test` |
+| `--max-futures-fee-rate`       | Maximum futures fee rate (decimal string)                                 | No                             | `0.001`              |
+| `--max-spot-fee-rate`          | Maximum spot fee rate (decimal string)                                    | No                             | `0.0001`             |
 
-\* Either provide `--api-key` OR use `--authorize` with required authorization arguments.
+\* Either provide `--api-key`, OR use `--authorize` (creates API key), OR use `--authorize-only` (no API key).
 
 **Note on Auto-Generated Keys:** When using `--authorize` without providing `--builder-api-signer-privkey`, the script will automatically generate a new keypair and display the private key. Make sure to save this private key securely, as you'll need it to use the API key later.
 
@@ -88,7 +111,7 @@ python authorize.py --env testnet \
 
 ## How It Works
 
-### 1. Authorization Step (Optional)
+### 1a. Authorization Step with API key (`--authorize`)
 
 When you run with `--authorize`, the script:
 
@@ -108,7 +131,7 @@ When you run with `--authorize`, the script:
 6. Sends a POST request to `/auth/builder/authorize` with:
    - The signature components (v, r, s)
    - Account IDs and fee rates
-   - Builder API key label and signer address
+   - Builder API key label, signer address, and permissions
 7. Returns the generated API key
 
 **EIP-712 Domain:**
@@ -122,6 +145,27 @@ When you run with `--authorize`, the script:
 *Note: chainId varies by environment (dev/staging: 327, testnet: 326, prod: 325)*
 
 **Primary Type:** `AddAccountSignerWithBuilder`
+
+### 1b. Authorization Step without API key (`--authorize-only`)
+
+When you run with `--authorize-only`, the script:
+
+1. Generates a random nonce (32-bit unsigned integer)
+2. Calculates an expiration timestamp (7 days from now, in nanoseconds)
+3. Builds an EIP-712 typed data structure with:
+   - User's main account ID (funding account address)
+   - Builder's main account ID (funding account address)
+   - Maximum fee rates (converted to uint32)
+   - Nonce and expiration
+   - **No signer address or permissions** (those fields are omitted)
+4. Signs the typed data with the user's private key
+5. Sends a POST request to `/auth/builder/authorize` with:
+   - The signature components (v, r, s)
+   - Account IDs and fee rates
+   - **No** `builder_api_key_label`, `builder_api_key_signer`, or `builder_api_key_permissions`
+6. Exits after success — no API key is returned and the login step is skipped
+
+**Primary Type:** `AuthorizeBuilder`
 
 ### 2. Login Step
 
@@ -257,14 +301,14 @@ pip install --upgrade eth-account
 
 ### Missing Required Arguments
 
-**Error:** `Missing required args for --authorize: ...`
+**Error:** `Missing required args for --authorize: ...` or `Missing required args for --authorize-only: ...`
 
-**Solution:** When using `--authorize`, you must provide:
+**Solution:** When using `--authorize` or `--authorize-only`, you must provide:
 - `--user-privkey`
 - `--main-account-id`
 - `--builder-account-id`
 
-Note: `--builder-api-signer-privkey` is optional and will be auto-generated if not provided.
+Note: `--builder-api-signer-privkey` is optional for `--authorize` (auto-generated if not provided) and is not used at all for `--authorize-only`.
 
 ## Exit Codes
 
@@ -326,9 +370,11 @@ python authorize.py --env prod --api-key YOUR_API_KEY
 
 The script is organized into reusable functions:
 
-- `build_eip712_payload()` - Constructs the EIP-712 typed data structure
+- `build_eip712_payload()` - Constructs the EIP-712 `AddAccountSignerWithBuilder` typed data structure (used with `--authorize`)
+- `build_eip712_payload_authorize_only()` - Constructs the EIP-712 `AuthorizeBuilder` typed data structure (used with `--authorize-only`)
 - `sign_eip712()` - Signs typed data with a private key (returns v, r, s)
-- `authorize_builder()` - Calls the builder authorization endpoint
+- `authorize_builder()` - Calls the builder authorization endpoint and returns an API key
+- `authorize_builder_only()` - Calls the builder authorization endpoint without creating an API key
 - `login_with_api_key()` - Authenticates with an API key
 - `get_sub_accounts()` - Fetches sub-accounts from the Trading API
 - `_ensure_0x()` - Normalizes Ethereum addresses (adds 0x prefix, lowercases)
