@@ -184,10 +184,11 @@ def build_eip712_payload_authorize_only(
     domain_chain_id: int,
 ) -> Dict[str, Any]:
     """EIP-712 payload for AuthorizeBuilder (no API key creation)."""
+    # "AuthorizeBuilder(address mainAccountID,address builderAccountID,uint32 maxFutureFeeRate,uint32 maxSpotFeeRate,uint32 nonce,int64 expiration)"
     return {
         "domain": {"chainId": domain_chain_id, "name": "GRVT Exchange", "version": "0"},
         "message": {
-            "accountID": main_account_id,
+            "mainAccountID": main_account_id,
             "builderAccountID": builder_account_id,
             "maxFutureFeeRate": max_future_fee_rate_uint32,
             "maxSpotFeeRate": max_spot_fee_rate_uint32,
@@ -202,7 +203,7 @@ def build_eip712_payload_authorize_only(
                 {"name": "chainId", "type": "uint256"},
             ],
             "AuthorizeBuilder": [
-                {"name": "accountID", "type": "address"},
+                {"name": "mainAccountID", "type": "address"},
                 {"name": "builderAccountID", "type": "address"},
                 {"name": "maxFutureFeeRate", "type": "uint32"},
                 {"name": "maxSpotFeeRate", "type": "uint32"},
@@ -253,6 +254,10 @@ def authorize_builder(
     builder_api_key_signer_privkey = _ensure_0x(builder_api_key_signer_privkey)
     signer_addr = Account.from_key(builder_api_key_signer_privkey).address
 
+    # Get the public address from user_privkey for the signature signer field
+    user_privkey_normalized = _ensure_0x(user_privkey)
+    user_address = Account.from_key(user_privkey_normalized).address
+
     # Docs show maxFutureFeeRate/maxSpotFeeRate are uint32 in the signing payload. :contentReference[oaicite:9]{index=9}
     # The request params are "string"; examples show decimals. :contentReference[oaicite:10]{index=10}
     # For the typed payload we need uint32. Without a clear scaling rule in this page, we let you pass integers
@@ -276,8 +281,7 @@ def authorize_builder(
         expiration_unix_ns=expiration_ns,
         domain_chain_id=env.chain_id,
     )
-
-    v, r, s = sign_eip712(user_privkey=_ensure_0x(user_privkey), typed_data=typed)
+    v, r, s = sign_eip712(user_privkey=user_privkey_normalized, typed_data=typed)
 
     url = f"{env.edge_base}/auth/builder/authorize"
     payload = {
@@ -286,7 +290,7 @@ def authorize_builder(
         "max_futures_fee_rate": max_futures_fee_rate,
         "max_spot_fee_rate": max_spot_fee_rate,
         "signature": {
-            "signer": _ensure_0x(main_account_id),
+            "signer": _ensure_0x(user_address),
             "r": r,
             "s": s,
             "v": v,
@@ -325,6 +329,10 @@ def authorize_builder_only(
     Use this when you only need to authorize a builder's fee rates without
     granting trading permissions via an API key.
     """
+    # Get the public address from user_privkey for the signature signer field
+    user_privkey_normalized = _ensure_0x(user_privkey)
+    user_address = Account.from_key(user_privkey_normalized).address
+
     mf_uint32 = int(float(max_futures_fee_rate) * 10_000)
     ms_uint32 = int(float(max_spot_fee_rate) * 10_000)
 
@@ -340,8 +348,7 @@ def authorize_builder_only(
         expiration_unix_ns=expiration_ns,
         domain_chain_id=env.chain_id,
     )
-
-    v, r, s = sign_eip712(user_privkey=_ensure_0x(user_privkey), typed_data=typed)
+    v, r, s = sign_eip712(user_privkey=user_privkey_normalized, typed_data=typed)
 
     url = f"{env.edge_base}/auth/builder/authorize"
     payload = {
@@ -350,7 +357,7 @@ def authorize_builder_only(
         "max_futures_fee_rate": max_futures_fee_rate,
         "max_spot_fee_rate": max_spot_fee_rate,
         "signature": {
-            "signer": _ensure_0x(main_account_id),
+            "signer": _ensure_0x(user_address),
             "r": r,
             "s": s,
             "v": v,
