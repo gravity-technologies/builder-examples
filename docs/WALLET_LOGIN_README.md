@@ -6,7 +6,11 @@ A Python script that authenticates to GRVT using an EIP-712 wallet signature (`P
 
 `wallet_login.py` demonstrates EIP-712-based authentication for the main signing wallet.
 Unlike API-key login (which requires a pre-minted key), wallet login lets any registered
-main-wallet holder obtain a session cookie by signing a short-lived message directly.
+main-wallet holder authenticate by signing a short-lived message directly. It returns:
+
+- **Session cookie** (`gravity=...`) — for authenticated Trading API calls
+- **Off-chain account ID** (`X-Grvt-Account-Id`) — required header for API requests
+- **`funding_account_address`** — the user's on-chain main account address; pass this as `--main-account-id` in `authorize.py`
 
 ### How it works
 
@@ -50,7 +54,6 @@ Wallet login is the **first step** in the builder integration. Use the `funding_
 | `signer`     | `address` | The wallet address signing the message             |
 | `nonce`      | `uint32`  | Random client-chosen value (replay prevention)     |
 | `expiration` | `int64`   | Unix timestamp in **nanoseconds**, max now + 5 min |
-
 ### Server-enforced constraints
 
 | Rule                     | Detail                                                                                  |

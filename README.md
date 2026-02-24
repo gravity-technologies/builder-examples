@@ -100,7 +100,7 @@ python grvt_create_order_api.py \
 
 ### 1. wallet_login.py - Wallet Login
 
-**Purpose:** Authenticate with the user's main wallet using EIP-712 to obtain their `funding_account_address` — required as `--main-account-id` in the authorize step.
+**Purpose:** Authenticate with the user's main wallet using EIP-712. Returns a session cookie and off-chain account ID for API access, and `funding_account_address` which is used as `--main-account-id` in the authorize step.
 
 **Key Features:**
 - EIP-712 `WalletLogin` signature (primary type: `WalletLogin(address signer, uint32 nonce, int64 expiration)`)
