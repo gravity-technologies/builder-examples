@@ -200,23 +200,33 @@ All scripts support multiple GRVT environments:
 
 Use `--env` flag to select the environment (default: `testnet`).
 
-## Complete Workflow Example
+## Complete Integration Flow
 
-Here's a complete workflow from authorization to order creation:
+Here's the recommended end-to-end flow from wallet login through to order creation:
 
-### Step 1: Authorization (One-time setup)
+### Step 1: Login with user's wallet (get main_account_id)
 
 ```bash
-# Set environment variables for security
-export USER_PRIVKEY="0x..."
-export MAIN_ACCOUNT="0x..."
-export BUILDER_ACCOUNT="0x..."
-export BUILDER_SIGNER_PRIVKEY="0x..."
+export USER_WALLET_PRIVKEY="0x..."   # User's main signing wallet private key
+export BUILDER_ACCOUNT="0x..."       # Builder's funding account address
 
-# Generate API key
+# Login — the response contains funding_account_address (= main_account_id)
+python wallet_login.py --env testnet \
+  --wallet-privkey "$USER_WALLET_PRIVKEY" \
+  --no-verify
+
+# Copy the "Funding account address" from the output:
+export MAIN_ACCOUNT="0x..."          # funding_account_address from wallet_login output
+```
+
+### Step 2: Authorize builder (get api_key)
+
+```bash
+export BUILDER_SIGNER_PRIVKEY="0x..."   # Fresh keypair for the API key (auto-generated if omitted)
+
 python authorize.py --env testnet \
   --authorize \
-  --user-privkey "$USER_PRIVKEY" \
+  --user-privkey "$USER_WALLET_PRIVKEY" \
   --main-account-id "$MAIN_ACCOUNT" \
   --builder-account-id "$BUILDER_ACCOUNT" \
   --builder-api-signer-privkey "$BUILDER_SIGNER_PRIVKEY"
@@ -225,7 +235,7 @@ python authorize.py --env testnet \
 export GRVT_API_KEY="grvt_api_..."
 ```
 
-### Step 2: Create Your Order Data
+### Step 3: Create orders
 
 Edit `create_order_data.json`:
 
@@ -258,7 +268,7 @@ Edit `create_order_data.json`:
 }
 ```
 
-### Step 3: Submit the Order
+### Step 4: Submit the Order
 
 ```bash
 export ORDER_SIGNING_KEY="0x..."  # Private key for signing orders

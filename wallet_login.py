@@ -192,11 +192,14 @@ def wallet_login(
     wallet_privkey: str,
     wallet_address: Optional[str] = None,
     expiration_secs: int = _DEFAULT_EXPIRATION_SECS,
-) -> Tuple[str, str]:
+) -> Tuple[str, str, str]:
     """
     Signs a WalletLogin EIP-712 message and calls POST /auth/wallet/login.
 
-    Returns: (gravity_cookie, x_grvt_account_id)
+    Returns: (gravity_cookie, x_grvt_account_id, funding_account_address)
+
+    funding_account_address is the user's main account (chain account address)
+    returned in the response body — use it as main_account_id in authorize_builder().
 
     The expiration must be ≤ now + 5 minutes (server-enforced).
     Defaults to 4 minutes to allow for clock skew.
@@ -245,7 +248,11 @@ def wallet_login(
     if not account_id:
         raise RuntimeError("Could not find x-grvt-account-id in response headers.")
 
-    return gravity_cookie, account_id
+    # The response body contains the funding account address (chain account address).
+    # This is the value to use as main_account_id in subsequent authorize calls.
+    funding_account_address = resp.json().get("funding_account_address", "")
+
+    return gravity_cookie, account_id, funding_account_address
 
 
 def get_sub_accounts(env: EnvConfig, gravity_cookie: str, x_grvt_account_id: str) -> Dict[str, Any]:
@@ -284,15 +291,18 @@ def main() -> int:
 
     env = ENVS[args.env]
 
-    gravity_cookie, account_id = wallet_login(
+    gravity_cookie, account_id, funding_account_address = wallet_login(
         env,
         wallet_privkey=args.wallet_privkey,
         wallet_address=args.wallet_address,
         expiration_secs=args.expiration_secs,
     )
 
-    print(f"\nSession gravity cookie: {gravity_cookie}")
-    print(f"X-Grvt-Account-Id:      {account_id}")
+    print(f"\nSession gravity cookie:   {gravity_cookie}")
+    print(f"X-Grvt-Account-Id:        {account_id}")
+    if funding_account_address:
+        print(f"Funding account address:  {funding_account_address}")
+        print(f"  (use as --main-account-id in authorize.py)")
 
     if args.no_verify:
         print("\n✅ Wallet login complete.")

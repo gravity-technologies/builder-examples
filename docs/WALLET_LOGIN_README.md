@@ -14,7 +14,24 @@ main-wallet holder obtain a session cookie by signing a short-lived message dire
 2. Client signs the struct with the wallet private key (`eth_signTypedData_v4`).
 3. Client POSTs `{ address, signature: { v, r, s, nonce, expiration, chainID } }` to `/auth/wallet/login`.
 4. Server validates expiration, verifies the EIP-712 signature, atomically marks the nonce as used (replay prevention via Redis), and issues a session cookie.
-5. The script extracts the `gravity` cookie and `X-Grvt-Account-Id` header for use in subsequent API calls.
+5. Server returns `{"funding_account_address": "0x..."}` in the response body — the user's main account (chain account address).
+6. The script extracts the `gravity` cookie, `X-Grvt-Account-Id` header, and `funding_account_address`.
+
+### Full integration flow
+
+Wallet login is the **first step** in the builder integration. Use the `funding_account_address` from the login response as `main_account_id` in subsequent steps:
+
+```
+1. wallet_login  →  funding_account_address  (= main_account_id)
+2. authorize     →  api_key                  (builder authorised for user)
+3. trade         →  orders submitted on behalf of user
+```
+
+| Step                        | Script                     | Key output                                           |
+|-----------------------------|----------------------------|------------------------------------------------------|
+| 1. Login with user's wallet | `wallet_login.py`          | `funding_account_address` → use as `main_account_id` |
+| 2. Authorize builder        | `authorize.py --authorize` | `api_key`                                            |
+| 3. Create orders            | `grvt_create_order_api.py` | order confirmation                                   |
 
 ### EIP-712 structure
 
@@ -106,13 +123,13 @@ python wallet_login.py --env testnet \
 
 ## Command Line Arguments
 
-| Argument              | Description                                                            | Required | Default             |
-|-----------------------|------------------------------------------------------------------------|----------|---------------------|
-| `--env`               | Target environment (dev/staging/testnet/prod)                          | No       | `testnet`           |
-| `--wallet-privkey`    | Main wallet private key for EIP-712 signing                            | **Yes**  | None                |
-| `--wallet-address`    | Wallet address (derived from `--wallet-privkey` if omitted)            | No       | Derived from privkey|
-| `--expiration-secs`   | Signature lifetime in seconds (max 300 — server enforced)              | No       | `240` (4 minutes)   |
-| `--no-verify`         | Skip the `get_sub_accounts` verification step after login              | No       | False               |
+| Argument            | Description                                                 | Required | Default              |
+|---------------------|-------------------------------------------------------------|----------|----------------------|
+| `--env`             | Target environment (dev/staging/testnet/prod)               | No       | `testnet`            |
+| `--wallet-privkey`  | Main wallet private key for EIP-712 signing                 | **Yes**  | None                 |
+| `--wallet-address`  | Wallet address (derived from `--wallet-privkey` if omitted) | No       | Derived from privkey |
+| `--expiration-secs` | Signature lifetime in seconds (max 300 — server enforced)   | No       | `240` (4 minutes)    |
+| `--no-verify`       | Skip the `get_sub_accounts` verification step after login   | No       | False                |
 
 ## How It Works
 
@@ -120,7 +137,7 @@ python wallet_login.py --env testnet \
 
 The script constructs a `WalletLogin` typed-data structure:
 
-```python
+```
 {
     "domain": {
         "name": "GRVT Exchange",
@@ -170,10 +187,20 @@ The struct is signed with `eth_signTypedData_v4` (EIP-712), producing `v` (27 or
 
 `chainID` is optional — the server uses its configured GRVT chain ID when omitted or set to `0`.
 
-### Step 4: Extract session
+### Step 4: Extract session and funding account address
 
-On `200 OK` the server sets a `gravity` session cookie and `X-Grvt-Account-Id` header.
-These are used for all subsequent authenticated API calls:
+On `200 OK` the server sets a `gravity` session cookie and `X-Grvt-Account-Id` header,
+and returns the following JSON body:
+
+```json
+{
+  "funding_account_address": "0xYOUR_MAIN_ACCOUNT_ADDRESS"
+}
+```
+
+`funding_account_address` is the user's **main account** (chain account address) — pass it
+as `--main-account-id` when calling `authorize.py`. The session cookie and header are used
+for all subsequent authenticated API calls:
 
 ```
 Cookie: gravity=...
@@ -196,9 +223,15 @@ URL: POST https://edge.testnet.grvt.io/auth/wallet/login
 Status: 200
 X-Grvt-Account-Id: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
 Set-Cookie: gravity=...; Path=/; HttpOnly; Secure
+JSON:
+{
+  "funding_account_address": "0xabc123..."
+}
 
-Session gravity cookie: gravity=...
-X-Grvt-Account-Id:      0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+Session gravity cookie:   gravity=...
+X-Grvt-Account-Id:        0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+Funding account address:  0xabc123...
+  (use as --main-account-id in authorize.py)
 
 == Get Sub Accounts ==
 URL: POST https://trades.testnet.grvt.io/full/v1/get_sub_accounts
@@ -223,7 +256,7 @@ Sub accounts: {...}
 
 - `build_eip712_payload()` — Constructs the `WalletLogin` EIP-712 typed data structure
 - `sign_eip712()` — Signs typed data with a private key (returns v, r, s)
-- `wallet_login()` — Calls `POST /auth/wallet/login` and returns `(gravity_cookie, x_grvt_account_id)`
+- `wallet_login()` — Calls `POST /auth/wallet/login` and returns `(gravity_cookie, x_grvt_account_id, funding_account_address)`
 - `get_sub_accounts()` — Calls `POST /full/v1/get_sub_accounts` to verify the session
 - `_ensure_0x()` — Normalizes Ethereum addresses (adds 0x prefix, lowercases)
 - `_hex32()` — Converts integers to 32-byte hex strings
