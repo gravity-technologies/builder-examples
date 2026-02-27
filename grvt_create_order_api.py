@@ -24,27 +24,22 @@ import argparse
 import json
 import secrets
 import sys
-import time
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict
 
 import requests
 from eth_account import Account
 from eth_account.messages import encode_typed_data
 
+from grvt_common import (
+    EnvConfig, ENVS, get_server_time_ns, login_with_api_key, print_http,
+)
+
 
 # ================================================================================
-# ENVIRONMENT CONFIGURATIONS
+# ORDER-SPECIFIC CONSTANTS AND TYPES
 # ================================================================================
-
-class GrvtEnv(Enum):
-    """GRVT Environment enumeration."""
-    DEV = "dev"
-    STAGING = "staging"
-    TESTNET = "testnet"
-    PROD = "prod"
-
 
 class TimeInForce(Enum):
     """Time in Force enumeration."""
@@ -62,39 +57,6 @@ class SignTimeInForce(Enum):
     FILL_OR_KILL = 4
 
 
-# Chain IDs for each environment
-CHAIN_IDS = {
-    GrvtEnv.DEV: 327,
-    GrvtEnv.STAGING: 327,
-    GrvtEnv.TESTNET: 326,
-    GrvtEnv.PROD: 325,
-}
-
-# Edge API endpoints (for authentication)
-EDGE_API_ENDPOINTS = {
-    GrvtEnv.DEV: "https://edge.dev.gravitymarkets.io",
-    GrvtEnv.STAGING: "https://edge.staging.gravitymarkets.io",
-    GrvtEnv.TESTNET: "https://edge.testnet.grvt.io",
-    GrvtEnv.PROD: "https://edge.grvt.io",
-}
-
-# Trading API endpoints (for order submission)
-TRADING_API_ENDPOINTS = {
-    GrvtEnv.DEV: "https://trades.dev.gravitymarkets.io",
-    GrvtEnv.STAGING: "https://trades.staging.gravitymarkets.io",
-    GrvtEnv.TESTNET: "https://trades.testnet.grvt.io",
-    GrvtEnv.PROD: "https://trades.grvt.io",
-}
-
-# Market Data API endpoints (for instruments)
-MARKET_DATA_API_ENDPOINTS = {
-    GrvtEnv.DEV: "https://market-data.dev.gravitymarkets.io",
-    GrvtEnv.STAGING: "https://market-data.staging.gravitymarkets.io",
-    GrvtEnv.TESTNET: "https://market-data.testnet.grvt.io",
-    GrvtEnv.PROD: "https://market-data.grvt.io",
-}
-
-# Time in Force mapping
 TIME_IN_FORCE_TO_SIGN_TIME_IN_FORCE = {
     TimeInForce.GOOD_TILL_TIME: SignTimeInForce.GOOD_TILL_TIME,
     TimeInForce.ALL_OR_NONE: SignTimeInForce.ALL_OR_NONE,
@@ -129,102 +91,20 @@ EIP712_ORDER_MESSAGE_TYPE = {
 
 
 # ================================================================================
-# UTILITY FUNCTIONS
-# ================================================================================
-
-def _ensure_0x(s: str) -> str:
-    """Ensure a hex string has 0x prefix."""
-    s = s.strip()
-    return s if s.startswith("0x") else "0x" + s
-
-
-def _parse_gravity_cookie(set_cookie_header: Optional[str]) -> Optional[str]:
-    """Parse gravity cookie from Set-Cookie header."""
-    if not set_cookie_header:
-        return None
-    idx = set_cookie_header.lower().find("gravity=")
-    if idx == -1:
-        return None
-    frag = set_cookie_header[idx:]
-    end = frag.find(";")
-    return frag if end == -1 else frag[:end]
-
-
-def _print_http(title: str, resp: requests.Response) -> None:
-    """Print HTTP request/response details."""
-    print(f"\n== {title} ==")
-    print(f"URL: {resp.request.method} {resp.request.url}")
-    print(f"Status: {resp.status_code}")
-    if resp.headers.get("x-grvt-account-id"):
-        print(f"X-Grvt-Account-Id: {resp.headers.get('x-grvt-account-id')}")
-    try:
-        data = resp.json()
-        print("Response:")
-        print(json.dumps(data, indent=2))
-    except Exception:
-        body = resp.text
-        print("Body:")
-        print(body[:2000] + ("..." if len(body) > 2000 else ""))
-
-
-# ================================================================================
-# AUTHENTICATION FUNCTIONS
-# ================================================================================
-
-def login_with_api_key(env: GrvtEnv, api_key: str) -> Tuple[str, str]:
-    """
-    Login with API key to get session cookie and account ID.
-
-    Args:
-        env: GRVT environment
-        api_key: API key for authentication
-
-    Returns:
-        Tuple of (gravity_cookie, x_grvt_account_id)
-    """
-    edge_base = EDGE_API_ENDPOINTS[env]
-    url = f"{edge_base}/auth/api_key/login"
-    headers = {"Content-Type": "application/json", "Cookie": "rm=true;"}
-
-    print(f"\n🔐 Logging in with API key to {env.value} environment...")
-    resp = requests.post(url, headers=headers, json={"api_key": api_key}, timeout=30)
-
-    if resp.status_code != 200:
-        _print_http("API Key Login Failed", resp)
-        raise RuntimeError(f"Login failed with status {resp.status_code}")
-
-    gravity_cookie = _parse_gravity_cookie(resp.headers.get("set-cookie"))
-    account_id = resp.headers.get("x-grvt-account-id")
-
-    if not gravity_cookie:
-        raise RuntimeError("Could not find gravity cookie in Set-Cookie response header.")
-    if not account_id:
-        raise RuntimeError("Could not find x-grvt-account-id in response headers.")
-
-    print(f"✅ Login successful!")
-    print(f"   Account ID: {account_id}")
-    return gravity_cookie, account_id
-
-
-# ================================================================================
 # INSTRUMENTS FUNCTIONS
 # ================================================================================
 
-def fetch_instruments_from_api(env: GrvtEnv) -> Dict[str, Dict[str, Any]]:
+def fetch_instruments_from_api(env: EnvConfig) -> Dict[str, Dict[str, Any]]:
     """
     Fetch instruments data from GRVT Market Data API.
-
-    Args:
-        env: GRVT environment
 
     Returns:
         Dictionary mapping instrument names to their metadata
     """
-    market_data_base = MARKET_DATA_API_ENDPOINTS[env]
-    url = f"{market_data_base}/full/v1/all_instruments"
+    url = f"{env.market_data_base}/full/v1/all_instruments"
     payload = {"is_active": True}
 
-    print(f"\n🔄 Fetching instruments from {env.value} environment...")
+    print(f"\n🔄 Fetching instruments from {env.name} environment...")
     response = requests.post(url, json=payload, timeout=30)
     response.raise_for_status()
 
@@ -245,15 +125,6 @@ def fetch_instruments_from_api(env: GrvtEnv) -> Dict[str, Dict[str, Any]]:
 # ================================================================================
 # ORDER SIGNING FUNCTIONS
 # ================================================================================
-
-def get_eip712_domain_data(env: GrvtEnv) -> Dict[str, Any]:
-    """Get EIP-712 domain data for the environment."""
-    return {
-        "name": "GRVT Exchange",
-        "version": "0",
-        "chainId": CHAIN_IDS[env],
-    }
-
 
 def build_order_message_data(order_data: Dict[str, Any], instruments: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     """
@@ -319,16 +190,10 @@ def sign_order(
     order_data: Dict[str, Any],
     instruments: Dict[str, Dict[str, Any]],
     private_key: str,
-    env: GrvtEnv
+    env: EnvConfig,
 ) -> Dict[str, Any]:
     """
     Sign an order using EIP-712 signature.
-
-    Args:
-        order_data: Order data containing legs, signature info, etc.
-        instruments: Dictionary mapping instrument names to their metadata
-        private_key: Private key in hex format
-        env: GRVT environment
 
     Returns:
         Dictionary containing the complete signed order payload
@@ -340,22 +205,18 @@ def sign_order(
     # Build EIP-712 message data
     message_data = build_order_message_data(order_data, instruments)
 
-    # Build EIP-712 domain data
-    domain_data = get_eip712_domain_data(env)
-
-    # Create signable message
+    # Build EIP-712 domain and sign
+    domain_data = {"name": "GRVT Exchange", "version": "0", "chainId": env.chain_id}
     signable_message = encode_typed_data(domain_data, EIP712_ORDER_MESSAGE_TYPE, message_data)
 
-    # Sign the message
     account = Account.from_key(private_key)
     signed_message = account.sign_message(signable_message)
 
-    # Extract signature components
     signature = {
         "r": "0x" + signed_message.r.to_bytes(32, byteorder="big").hex(),
         "s": "0x" + signed_message.s.to_bytes(32, byteorder="big").hex(),
         "v": signed_message.v,
-        "signer": account.address
+        "signer": account.address,
     }
 
     # Create complete order payload
@@ -364,14 +225,13 @@ def sign_order(
     else:
         order = order_data.copy()
 
-    # Update the signature in the order data
     order["signature"] = {
         "r": signature["r"],
         "s": signature["s"],
         "v": signature["v"],
         "expiration": order["signature"]["expiration"],
         "nonce": order["signature"]["nonce"],
-        "signer": signature["signer"]
+        "signer": signature["signer"],
     }
 
     return {"order": order}
@@ -382,40 +242,32 @@ def sign_order(
 # ================================================================================
 
 def create_order(
-    env: GrvtEnv,
+    env: EnvConfig,
     gravity_cookie: str,
     account_id: str,
-    order_payload: Dict[str, Any]
+    order_payload: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
     Submit an order to the GRVT Trading API.
 
-    Args:
-        env: GRVT environment
-        gravity_cookie: Session cookie from login
-        account_id: Account ID from login
-        order_payload: Complete signed order payload
-
     Returns:
         API response with order details
     """
-    trades_base = TRADING_API_ENDPOINTS[env]
-    url = f"{trades_base}/full/v1/create_order"
-
+    url = f"{env.trades_base}/full/v1/create_order"
     headers = {
         "Content-Type": "application/json",
         "Cookie": gravity_cookie,
         "X-Grvt-Account-Id": account_id,
     }
 
-    print(f"\n📤 Submitting order to {env.value} Trading API...")
+    print(f"\n📤 Submitting order to {env.name} Trading API...")
     print(f"   Endpoint: {url}")
     print(json.dumps(order_payload, indent=2))
     print(headers)
     resp = requests.post(url, headers=headers, json=order_payload, timeout=30)
 
     if resp.status_code != 200:
-        _print_http("Create Order Failed", resp)
+        print_http("Create Order Failed", resp)
         raise RuntimeError(f"Order creation failed with status {resp.status_code}")
 
     print(f"✅ Order submitted successfully!")
@@ -437,19 +289,20 @@ def load_json_file(file_path: str) -> Dict[str, Any]:
         raise ValueError(f"Invalid JSON in file {file_path}: {e}")
 
 
-def update_order_signature_fields(order_data: Dict[str, Any], expiration_hours: int = 24) -> Dict[str, Any]:
+def update_order_signature_fields(order_data: Dict[str, Any], env: EnvConfig, expiration_hours: int = 24) -> Dict[str, Any]:
     """
     Update order signature fields with fresh expiration and nonce.
 
     Args:
         order_data: Order data to update
+        env: GRVT environment (used to fetch server time)
         expiration_hours: Hours until expiration (default 24)
 
     Returns:
         Updated order data
     """
-    # Generate new expiration (in nanoseconds)
-    expiration_ns = int((time.time() + expiration_hours * 3600) * 1_000_000_000)
+    # Generate new expiration (in nanoseconds) based on server time
+    expiration_ns = get_server_time_ns(env) + expiration_hours * 3600 * 1_000_000_000
 
     # Generate new nonce
     nonce = secrets.randbelow(2**32)
@@ -475,7 +328,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--env",
-        choices=["dev", "staging", "testnet", "prod"],
+        choices=ENVS.keys(),
         default="testnet",
         help="GRVT environment (default: testnet)"
     )
@@ -509,13 +362,12 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        # Parse environment
-        env = GrvtEnv(args.env)
+        env = ENVS[args.env]
 
         print("=" * 70)
         print("GRVT Order Creation with API Key Authentication")
         print("=" * 70)
-        print(f"Environment: {env.value}")
+        print(f"Environment: {env.name}")
 
         # Step 1: Login with API key
         gravity_cookie, account_id = login_with_api_key(env, args.api_key)
@@ -531,7 +383,7 @@ def main() -> int:
         # Step 4: Update signature fields if requested
         if args.update_expiration:
             print(f"\n🔄 Updating order expiration and nonce...")
-            order_data = update_order_signature_fields(order_data, args.expiration_hours)
+            order_data = update_order_signature_fields(order_data, env, args.expiration_hours)
             print(f"✅ Updated expiration and nonce")
 
         # Step 5: Sign the order

@@ -46,82 +46,21 @@ C) Provide wallet address explicitly (derived from privkey if omitted):
 from __future__ import annotations
 
 import argparse
-import json
 import secrets
 import sys
-import time
-from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
 import requests
-
 from eth_account import Account
-try:
-    from eth_account.messages import encode_typed_data  # eth-account >= 0.9
-except Exception:  # pragma: no cover
-    encode_typed_data = None
-try:
-    from eth_account.messages import encode_structured_data  # older fallback
-except Exception:  # pragma: no cover
-    encode_structured_data = None
 
-
-@dataclass(frozen=True)
-class EnvConfig:
-    name: str
-    edge_base: str
-    trades_base: str
-    chain_id: int
-
-
-ENVS: Dict[str, EnvConfig] = {
-    "dev":     EnvConfig("dev",     "https://edge.dev.gravitymarkets.io",     "https://trades.dev.gravitymarkets.io",     327),
-    "staging": EnvConfig("staging", "https://edge.staging.gravitymarkets.io", "https://trades.staging.gravitymarkets.io", 327),
-    "testnet": EnvConfig("testnet", "https://edge.testnet.grvt.io",            "https://trades.testnet.grvt.io",           326),
-    "prod":    EnvConfig("prod",    "https://edge.grvt.io",                   "https://trades.grvt.io",                   325),
-}
+from grvt_common import (
+    EnvConfig, ENVS, ensure_0x, parse_gravity_cookie, print_http,
+    get_server_time_ns, sign_eip712, get_sub_accounts,
+)
 
 # Maximum signature lifetime the server will accept (5 minutes, in seconds).
 # Use slightly less to account for clock skew and network latency.
 _DEFAULT_EXPIRATION_SECS = 4 * 60  # 4 minutes
-
-
-def _ensure_0x(s: str) -> str:
-    s = s.strip()
-    return s if s.startswith("0x") else "0x" + s
-
-
-def _hex32(n: int) -> str:
-    return "0x" + n.to_bytes(32, "big").hex()
-
-
-def _parse_gravity_cookie(set_cookie_header: Optional[str]) -> Optional[str]:
-    if not set_cookie_header:
-        return None
-    idx = set_cookie_header.lower().find("gravity=")
-    if idx == -1:
-        return None
-    frag = set_cookie_header[idx:]
-    end = frag.find(";")
-    return frag if end == -1 else frag[:end]
-
-
-def _print_http(title: str, resp: requests.Response) -> None:
-    print(f"\n== {title} ==")
-    print(f"URL: {resp.request.method} {resp.request.url}")
-    print(f"Status: {resp.status_code}")
-    if resp.headers.get("x-grvt-account-id"):
-        print(f"X-Grvt-Account-Id: {resp.headers.get('x-grvt-account-id')}")
-    if resp.headers.get("set-cookie"):
-        print(f"Set-Cookie: {resp.headers.get('set-cookie')}")
-    try:
-        data = resp.json()
-        print("JSON:")
-        print(json.dumps(data, indent=2))
-    except Exception:
-        body = resp.text
-        print("Body:")
-        print(body[:2000] + ("..." if len(body) > 2000 else ""))
 
 
 def build_eip712_payload(
@@ -163,29 +102,6 @@ def build_eip712_payload(
     }
 
 
-def sign_eip712(privkey: str, typed_data: Dict[str, Any]) -> Tuple[int, str, str]:
-    """Signs EIP-712 typed data and returns (v, r_hex, s_hex)."""
-    if encode_typed_data is None and encode_structured_data is None:
-        raise RuntimeError(
-            "eth-account is missing encode_typed_data/encode_structured_data; "
-            "try: pip install --upgrade eth-account"
-        )
-
-    privkey = _ensure_0x(privkey)
-    acct = Account.from_key(privkey)
-
-    if encode_typed_data is not None:
-        msg = encode_typed_data(full_message=typed_data)
-    else:
-        msg = encode_structured_data(primitive=typed_data)
-
-    signed = acct.sign_message(msg)
-    v = int(signed.v)
-    r = _hex32(int(signed.r))
-    s = _hex32(int(signed.s))
-    return v, r, s
-
-
 def wallet_login(
     env: EnvConfig,
     *,
@@ -204,12 +120,12 @@ def wallet_login(
     The expiration must be ≤ now + 5 minutes (server-enforced).
     Defaults to 4 minutes to allow for clock skew.
     """
-    wallet_privkey = _ensure_0x(wallet_privkey)
+    wallet_privkey = ensure_0x(wallet_privkey)
     acct = Account.from_key(wallet_privkey)
-    addr = _ensure_0x(wallet_address if wallet_address else acct.address)
+    addr = ensure_0x(wallet_address if wallet_address else acct.address)
 
     nonce = secrets.randbelow(2**32)
-    expiration_ns = int((time.time() + expiration_secs) * 1e9)
+    expiration_ns = get_server_time_ns(env) + expiration_secs * 1_000_000_000
 
     typed = build_eip712_payload(
         wallet_address=addr,
@@ -234,13 +150,13 @@ def wallet_login(
     }
     print(f"\nSigning as: {addr}")
     print(f"Nonce:      {nonce}")
-    print(f"Expiration: {expiration_ns} ns (~{expiration_secs}s from now)")
+    print(f"Expiration: {expiration_ns} ns (~{expiration_secs}s from server time)")
 
     resp = requests.post(url, json=payload, timeout=30)
-    _print_http("Wallet Login", resp)
+    print_http("Wallet Login", resp)
     resp.raise_for_status()
 
-    gravity_cookie = _parse_gravity_cookie(resp.headers.get("set-cookie"))
+    gravity_cookie = parse_gravity_cookie(resp.headers.get("set-cookie"))
     account_id = resp.headers.get("x-grvt-account-id")
 
     if not gravity_cookie:
@@ -253,20 +169,6 @@ def wallet_login(
     funding_account_address = resp.json().get("funding_account_address", "")
 
     return gravity_cookie, account_id, funding_account_address
-
-
-def get_sub_accounts(env: EnvConfig, gravity_cookie: str, x_grvt_account_id: str) -> Dict[str, Any]:
-    """Calls POST /full/v1/get_sub_accounts to verify the session."""
-    url = f"{env.trades_base}/full/v1/get_sub_accounts"
-    headers = {
-        "Content-Type": "application/json",
-        "Cookie": gravity_cookie,
-        "X-Grvt-Account-Id": x_grvt_account_id,
-    }
-    resp = requests.post(url, headers=headers, json={}, timeout=30)
-    _print_http("Get Sub Accounts", resp)
-    resp.raise_for_status()
-    return resp.json()
 
 
 def main() -> int:

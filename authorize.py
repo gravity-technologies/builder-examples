@@ -40,7 +40,7 @@ C) Authorize builder without API key creation:
 
 Notes:
 - The authorize step MUST be signed by the user's main account private key (EIP-712). :contentReference[oaicite:3]{index=3}
-- Permissions: docs say “Please use TRADE for now”. :contentReference[oaicite:4]{index=4}
+- Permissions: docs say "Please use TRADE for now". :contentReference[oaicite:4]{index=4}
 - Use --authorize when you need an API key for the builder to trade on behalf of the user.
 - Use --authorize-only when you only need to register the builder's fee rates without granting trading permissions.
 """
@@ -51,82 +51,15 @@ import argparse
 import json
 import secrets
 import sys
-import time
-from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict
 
 import requests
-
-# eth-account imports can differ slightly by version; we try both encode helpers.
 from eth_account import Account
-try:
-    from eth_account.messages import encode_typed_data  # newer
-except Exception:  # pragma: no cover
-    encode_typed_data = None
-try:
-    from eth_account.messages import encode_structured_data  # older
-except Exception:  # pragma: no cover
-    encode_structured_data = None
 
-
-@dataclass(frozen=True)
-class EnvConfig:
-    name: str
-    edge_base: str
-    trades_base: str
-    chain_id: int
-
-
-ENVS: Dict[str, EnvConfig] = {
-    "dev": EnvConfig("dev", "https://edge.dev.gravitymarkets.io", "https://trades.dev.gravitymarkets.io", 327),
-    "staging": EnvConfig("staging", "https://edge.staging.gravitymarkets.io", "https://trades.staging.gravitymarkets.io", 327),
-    "testnet": EnvConfig("testnet", "https://edge.testnet.grvt.io", "https://trades.testnet.grvt.io", 326),
-    "prod": EnvConfig("prod", "https://edge.grvt.io", "https://trades.grvt.io", 325),
-}
-
-
-def _ensure_0x(s: str) -> str:
-    s = s.strip()
-    s = s if s.startswith("0x") else "0x" + s
-    return s.lower()
-
-
-def _hex32(n: int) -> str:
-    return "0x" + n.to_bytes(32, "big").hex()
-
-
-def _parse_gravity_cookie(set_cookie_header: Optional[str]) -> Optional[str]:
-    # Docs show extracting gravity=[^;]* from Set-Cookie. :contentReference[oaicite:5]{index=5}
-    if not set_cookie_header:
-        return None
-    # Sometimes multiple cookies; requests exposes combined headers awkwardly.
-    # We'll just look for 'gravity=' in the string.
-    idx = set_cookie_header.lower().find("gravity=")
-    if idx == -1:
-        return None
-    frag = set_cookie_header[idx:]
-    end = frag.find(";")
-    return frag if end == -1 else frag[:end]
-
-
-def _print_http(title: str, resp: requests.Response) -> None:
-    print(f"\n== {title} ==")
-    print(f"URL: {resp.request.method} {resp.request.url}")
-    print(f"Status: {resp.status_code}")
-    ct = resp.headers.get("content-type", "")
-    print(f"Content-Type: {ct}")
-    if resp.headers.get("x-grvt-account-id"):
-        print(f"X-Grvt-Account-Id (response): {resp.headers.get('x-grvt-account-id')}")
-    if resp.headers.get("set-cookie"):
-        print(f"Set-Cookie: {resp.headers.get('set-cookie')}")
-    try:
-        data = resp.json()
-        print("JSON:")
-        print(json.dumps(data, indent=2))
-    except Exception:
-        body = resp.text
-        print("Body:")
-        print(body[:2000] + ("..." if len(body) > 2000 else ""))
+from grvt_common import (
+    EnvConfig, ENVS, ensure_0x, get_server_time_ns,
+    sign_eip712, login_with_api_key, get_sub_accounts, print_http,
+)
 
 
 def build_eip712_payload(
@@ -214,25 +147,6 @@ def build_eip712_payload_authorize_only(
     }
 
 
-def sign_eip712(user_privkey: str, typed_data: Dict[str, Any]) -> Tuple[int, str, str]:
-    if encode_typed_data is None and encode_structured_data is None:
-        raise RuntimeError("eth-account is missing encode_typed_data/encode_structured_data; try upgrading eth-account.")
-
-    user_privkey = _ensure_0x(user_privkey)
-    acct = Account.from_key(user_privkey)
-
-    if encode_typed_data is not None:
-        msg = encode_typed_data(full_message=typed_data)
-    else:
-        msg = encode_structured_data(primitive=typed_data)
-
-    signed = acct.sign_message(msg)
-    v = int(signed.v)
-    r = _hex32(int(signed.r))
-    s = _hex32(int(signed.s))
-    return v, r, s
-
-
 def authorize_builder(
     env: EnvConfig,
     *,
@@ -251,29 +165,24 @@ def authorize_builder(
     """
 
     # Builder API signer is an ETH keypair you generate for the user; its PUBLIC address goes into payload/request. :contentReference[oaicite:8]{index=8}
-    builder_api_key_signer_privkey = _ensure_0x(builder_api_key_signer_privkey)
+    builder_api_key_signer_privkey = ensure_0x(builder_api_key_signer_privkey)
     signer_addr = Account.from_key(builder_api_key_signer_privkey).address
 
     # Get the public address from user_privkey for the signature signer field
-    user_privkey_normalized = _ensure_0x(user_privkey)
+    user_privkey_normalized = ensure_0x(user_privkey)
     user_address = Account.from_key(user_privkey_normalized).address
 
     # Docs show maxFutureFeeRate/maxSpotFeeRate are uint32 in the signing payload. :contentReference[oaicite:9]{index=9}
-    # The request params are "string"; examples show decimals. :contentReference[oaicite:10]{index=10}
-    # For the typed payload we need uint32. Without a clear scaling rule in this page, we let you pass integers
-    # by environment variables if you want. For a simple smoke test, we map fee strings to basis points-ish:
-    #   typed_uint32 = int(fee * 1e4)  (arbitrary, but deterministic)
-    # If GRVT uses a different scaling, adjust these two lines accordingly.
     mf_uint32 = int(float(max_futures_fee_rate) * 10_000)
     ms_uint32 = int(float(max_spot_fee_rate) * 10_000)
 
     nonce = secrets.randbelow(2**32)
-    expiration_ns = int((time.time() + 7 * 24 * 3600) * 1e9)  # 7 days from now; docs allow up to 30 days. :contentReference[oaicite:11]{index=11}
+    expiration_ns = get_server_time_ns(env) + 7 * 24 * 3600 * 1_000_000_000  # 7 days from server time; docs allow up to 30 days. :contentReference[oaicite:11]{index=11}
 
     typed = build_eip712_payload(
-        main_account_id=_ensure_0x(main_account_id),
-        builder_account_id=_ensure_0x(builder_account_id),
-        signer_address=_ensure_0x(signer_addr),
+        main_account_id=ensure_0x(main_account_id),
+        builder_account_id=ensure_0x(builder_account_id),
+        signer_address=ensure_0x(signer_addr),
         permissions=permissions,
         max_future_fee_rate_uint32=mf_uint32,
         max_spot_fee_rate_uint32=ms_uint32,
@@ -281,16 +190,16 @@ def authorize_builder(
         expiration_unix_ns=expiration_ns,
         domain_chain_id=env.chain_id,
     )
-    v, r, s = sign_eip712(user_privkey=user_privkey_normalized, typed_data=typed)
+    v, r, s = sign_eip712(user_privkey_normalized, typed)
 
     url = f"{env.edge_base}/auth/builder/authorize"
     payload = {
-        "main_account_id": _ensure_0x(main_account_id),
-        "builder_account_id": _ensure_0x(builder_account_id),
+        "main_account_id": ensure_0x(main_account_id),
+        "builder_account_id": ensure_0x(builder_account_id),
         "max_futures_fee_rate": max_futures_fee_rate,
         "max_spot_fee_rate": max_spot_fee_rate,
         "signature": {
-            "signer": _ensure_0x(user_address),
+            "signer": ensure_0x(user_address),
             "r": r,
             "s": s,
             "v": v,
@@ -299,13 +208,13 @@ def authorize_builder(
             "chain_id": str(env.chain_id),
         },
         "builder_api_key_label": builder_api_key_label,
-        "builder_api_key_signer": _ensure_0x(signer_addr),
+        "builder_api_key_signer": ensure_0x(signer_addr),
         "builder_api_key_permissions": permissions,
     }
     print(json.dumps(payload))
 
     resp = requests.post(url, json=payload, timeout=30)
-    _print_http("Authorize Builder", resp)
+    print_http("Authorize Builder", resp)
     resp.raise_for_status()
     data = resp.json()
     api_key = data.get("api_key")
@@ -329,35 +238,34 @@ def authorize_builder_only(
     Use this when you only need to authorize a builder's fee rates without
     granting trading permissions via an API key.
     """
-    # Get the public address from user_privkey for the signature signer field
-    user_privkey_normalized = _ensure_0x(user_privkey)
+    user_privkey_normalized = ensure_0x(user_privkey)
     user_address = Account.from_key(user_privkey_normalized).address
 
     mf_uint32 = int(float(max_futures_fee_rate) * 10_000)
     ms_uint32 = int(float(max_spot_fee_rate) * 10_000)
 
     nonce = secrets.randbelow(2**32)
-    expiration_ns = int((time.time() + 7 * 24 * 3600) * 1e9)
+    expiration_ns = get_server_time_ns(env) + 7 * 24 * 3600 * 1_000_000_000
 
     typed = build_eip712_payload_authorize_only(
-        main_account_id=_ensure_0x(main_account_id),
-        builder_account_id=_ensure_0x(builder_account_id),
+        main_account_id=ensure_0x(main_account_id),
+        builder_account_id=ensure_0x(builder_account_id),
         max_future_fee_rate_uint32=mf_uint32,
         max_spot_fee_rate_uint32=ms_uint32,
         nonce_uint32=nonce,
         expiration_unix_ns=expiration_ns,
         domain_chain_id=env.chain_id,
     )
-    v, r, s = sign_eip712(user_privkey=user_privkey_normalized, typed_data=typed)
+    v, r, s = sign_eip712(user_privkey_normalized, typed)
 
     url = f"{env.edge_base}/auth/builder/authorize"
     payload = {
-        "main_account_id": _ensure_0x(main_account_id),
-        "builder_account_id": _ensure_0x(builder_account_id),
+        "main_account_id": ensure_0x(main_account_id),
+        "builder_account_id": ensure_0x(builder_account_id),
         "max_futures_fee_rate": max_futures_fee_rate,
         "max_spot_fee_rate": max_spot_fee_rate,
         "signature": {
-            "signer": _ensure_0x(user_address),
+            "signer": ensure_0x(user_address),
             "r": r,
             "s": s,
             "v": v,
@@ -369,45 +277,8 @@ def authorize_builder_only(
     print(json.dumps(payload))
 
     resp = requests.post(url, json=payload, timeout=30)
-    _print_http("Authorize Builder (no API key)", resp)
+    print_http("Authorize Builder (no API key)", resp)
     resp.raise_for_status()
-
-
-def login_with_api_key(env: EnvConfig, api_key: str) -> Tuple[str, str]:
-    """
-    Calls: POST {edge}/auth/api_key/login  :contentReference[oaicite:12]{index=12}
-    Returns: (gravity_cookie_value, x_grvt_account_id)
-    """
-    url = f"{env.edge_base}/auth/api_key/login"
-    headers = {"Content-Type": "application/json", "Cookie": "rm=true;"}  # per docs :contentReference[oaicite:13]{index=13}
-    resp = requests.post(url, headers=headers, json={"api_key": api_key}, timeout=30)
-    _print_http("API Key Login", resp)
-    resp.raise_for_status()
-
-    gravity_cookie = _parse_gravity_cookie(resp.headers.get("set-cookie"))
-    account_id = resp.headers.get("x-grvt-account-id")
-
-    if not gravity_cookie:
-        raise RuntimeError("Could not find gravity cookie in Set-Cookie response header.")
-    if not account_id:
-        raise RuntimeError("Could not find x-grvt-account-id in response headers.")
-    return gravity_cookie, account_id
-
-
-def get_sub_accounts(env: EnvConfig, gravity_cookie: str, x_grvt_account_id: str) -> Dict[str, Any]:
-    """
-    Calls: POST {trades}/full/v1/get_sub_accounts  :contentReference[oaicite:14]{index=14}
-    """
-    url = f"{env.trades_base}/full/v1/get_sub_accounts"
-    headers = {
-        "Content-Type": "application/json",
-        "Cookie": gravity_cookie,
-        "X-Grvt-Account-Id": x_grvt_account_id,
-    }
-    resp = requests.post(url, headers=headers, json={}, timeout=30)
-    _print_http("Get Sub Accounts", resp)
-    resp.raise_for_status()
-    return resp.json()
 
 
 def main() -> int:
