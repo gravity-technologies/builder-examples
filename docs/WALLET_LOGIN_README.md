@@ -16,7 +16,7 @@ main-wallet holder authenticate by signing a short-lived message directly. It re
 
 1. Client builds a `WalletLogin` EIP-712 struct with their wallet address, a random nonce, and an expiration timestamp.
 2. Client signs the struct with the wallet private key (`eth_signTypedData_v4`).
-3. Client POSTs `{ address, signature: { v, r, s, nonce, expiration, chainID } }` to `/auth/wallet/login`.
+3. Client POSTs `{ address, signature: { signer, v, r, s, nonce, expiration, chain_id } }` to `/auth/wallet/login`.
 4. Server validates expiration, verifies the EIP-712 signature, atomically marks the nonce as used (replay prevention via Redis), and issues a session cookie.
 5. Server returns `{"funding_account_address": "0x..."}` in the response body — the user's main account (chain account address).
 6. The script extracts the `gravity` cookie, `X-Grvt-Account-Id` header, and `funding_account_address`.
@@ -178,17 +178,18 @@ The struct is signed with `eth_signTypedData_v4` (EIP-712), producing `v` (27 or
 {
   "address": "0xYOUR_WALLET_ADDRESS",
   "signature": {
+    "signer": "0xYOUR_WALLET_ADDRESS",
     "v": 28,
     "r": "0x...",
     "s": "0x...",
     "nonce": 2847362918,
-    "expiration": 1700000240000000000,
-    "chainID": 326
+    "expiration": "1700000240000000000",
+    "chain_id": "326"
   }
 }
 ```
 
-`chainID` is optional — the server uses its configured GRVT chain ID when omitted or set to `0`.
+`chain_id` is optional — the server uses its configured GRVT chain ID when omitted or set to `"0"`.
 
 ### Step 4: Extract session and funding account address
 
