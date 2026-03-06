@@ -6,7 +6,7 @@ Calls POST /auth/wallet/login with a WalletLogin EIP-712 signature and
 then optionally verifies the session by calling get_sub_accounts.
 
 Flow:
-1. Client signs WalletLogin(address address, uint32 nonce, int64 expiration)
+1. Client signs WalletLogin(address signer, uint32 nonce, int64 expiration)
    using the wallet private key (eth_signTypedData_v4 / EIP-712).
 2. Client POSTs { address, signature: { signer, v, r, s, nonce, expiration, chain_id } }
    to /auth/wallet/login.
@@ -73,7 +73,7 @@ def build_eip712_payload(
     """
     Builds the EIP-712 typed data for WalletLogin.
 
-    Primary type: WalletLogin(address address, uint32 nonce, int64 expiration)
+    Primary type: WalletLogin(address signer, uint32 nonce, int64 expiration)
     Domain:       GRVT Exchange / version 0 / chainId
     """
     return {
@@ -83,7 +83,7 @@ def build_eip712_payload(
             "chainId": domain_chain_id,
         },
         "message": {
-            "address": wallet_address,
+            "signer": wallet_address,
             "nonce": nonce_uint32,
             "expiration": expiration_unix_ns,
         },
@@ -95,7 +95,7 @@ def build_eip712_payload(
                 {"name": "chainId", "type": "uint256"},
             ],
             "WalletLogin": [
-                {"name": "address",    "type": "address"},
+                {"name": "signer",     "type": "address"},
                 {"name": "nonce",      "type": "uint32"},
                 {"name": "expiration", "type": "int64"},
             ],
