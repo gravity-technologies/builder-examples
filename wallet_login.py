@@ -6,9 +6,9 @@ Calls POST /auth/wallet/login with a WalletLogin EIP-712 signature and
 then optionally verifies the session by calling get_sub_accounts.
 
 Flow:
-1. Client signs WalletLogin(address signer, uint32 nonce, int64 expiration)
+1. Client signs WalletLogin(address address, uint32 nonce, int64 expiration)
    using the wallet private key (eth_signTypedData_v4 / EIP-712).
-2. Client POSTs { address, signature: { v, r, s, nonce, expiration, chainID } }
+2. Client POSTs { address, signature: { signer, v, r, s, nonce, expiration, chain_id } }
    to /auth/wallet/login.
 3. Server validates expiration (must be > now AND ≤ now + 5 minutes),
    verifies EIP-712 sig, atomically consumes nonce (replay prevention),
@@ -46,6 +46,7 @@ C) Provide wallet address explicitly (derived from privkey if omitted):
 from __future__ import annotations
 
 import argparse
+import json
 import secrets
 import sys
 from typing import Any, Dict, Optional, Tuple
@@ -72,7 +73,7 @@ def build_eip712_payload(
     """
     Builds the EIP-712 typed data for WalletLogin.
 
-    Primary type: WalletLogin(address signer, uint32 nonce, int64 expiration)
+    Primary type: WalletLogin(address address, uint32 nonce, int64 expiration)
     Domain:       GRVT Exchange / version 0 / chainId
     """
     return {
@@ -82,7 +83,7 @@ def build_eip712_payload(
             "chainId": domain_chain_id,
         },
         "message": {
-            "signer": wallet_address,
+            "address": wallet_address,
             "nonce": nonce_uint32,
             "expiration": expiration_unix_ns,
         },
@@ -94,7 +95,7 @@ def build_eip712_payload(
                 {"name": "chainId", "type": "uint256"},
             ],
             "WalletLogin": [
-                {"name": "signer",     "type": "address"},
+                {"name": "address",    "type": "address"},
                 {"name": "nonce",      "type": "uint32"},
                 {"name": "expiration", "type": "int64"},
             ],
@@ -140,14 +141,16 @@ def wallet_login(
     payload = {
         "address": addr,
         "signature": {
+            "signer": addr,
             "v": v,
             "r": r,
             "s": s,
             "nonce": nonce,
-            "expiration": expiration_ns,
-            "chainID": env.chain_id,
+            "expiration": str(expiration_ns),
+            "chain_id": str(env.chain_id),
         },
     }
+    print(json.dumps(payload, indent=2))
     print(f"\nSigning as: {addr}")
     print(f"Nonce:      {nonce}")
     print(f"Expiration: {expiration_ns} ns (~{expiration_secs}s from server time)")
