@@ -1,6 +1,6 @@
 # GRVT Builder Examples
 
-A collection of Python scripts demonstrating integration with GRVT's Builder Codes system and Trading API.
+Example scripts demonstrating integration with GRVT's Builder Codes system and Trading API, available in **Python** and **TypeScript**.
 
 ## Overview
 
@@ -15,20 +15,33 @@ These examples demonstrate the complete flow from user authorization to order ex
 
 ```
 builder-examples/
-├── authorize.py                  # Builder authorization & API key generation
-├── wallet_login.py              # EIP-712 wallet login (main signing wallet)
-├── grvt_create_order_api.py     # Order creation with API key authentication
-├── create_order_data.json       # Sample order data
+├── python/                          # Python implementation
+│   ├── grvt_common.py              # Shared utilities
+│   ├── wallet_login.py             # EIP-712 wallet login
+│   ├── authorize.py                # Builder authorization & API key generation
+│   ├── grvt_create_order_api.py    # Order creation with API key auth
+│   └── create_order_data.json      # Sample order data
+├── typescript/                      # TypeScript implementation
+│   ├── src/
+│   │   ├── grvt_common.ts          # Shared utilities
+│   │   ├── wallet_login.ts         # EIP-712 wallet login
+│   │   ├── authorize.ts            # Builder authorization & API key generation
+│   │   └── grvt_create_order_api.ts # Order creation with API key auth
+│   ├── create_order_data.json      # Sample order data
+│   ├── package.json
+│   └── tsconfig.json
 ├── docs/
-│   ├── AUTHORIZE_README.md      # Detailed authorize.py documentation
-│   ├── WALLET_LOGIN_README.md   # Detailed wallet_login.py documentation
-│   └── CREATE_ORDER_README.md   # Detailed order creation documentation
-└── README.md                    # This file
+│   ├── AUTHORIZE_README.md          # Detailed authorize documentation
+│   ├── WALLET_LOGIN_README.md       # Detailed wallet login documentation
+│   └── CREATE_ORDER_README.md       # Detailed order creation documentation
+└── README.md                        # This file
 ```
 
 ## Quick Start
 
-### Prerequisites
+### Python
+
+#### Prerequisites
 
 - Python 3.7+
 - Install required packages:
@@ -37,25 +50,17 @@ builder-examples/
 pip install requests eth-account
 ```
 
-### 1. Wallet Login → get `funding_account_address`
-
-Login with the user's main wallet to obtain their `funding_account_address` (used as `main_account_id` in the next step):
+#### 1. Wallet Login
 
 ```bash
+cd python
 python wallet_login.py \
   --env testnet \
   --wallet-privkey 0xYOUR_USER_WALLET_PRIVATE_KEY \
   --no-verify
-
-# Output includes:
-#   Funding account address: 0xabc123...   ← use this as --main-account-id below
 ```
 
-**📖 See [docs/WALLET_LOGIN_README.md](docs/WALLET_LOGIN_README.md) for complete documentation**
-
-### 2. Generate an API Key → `main_account_id` = `funding_account_address` from step 1
-
-Authorize a builder to generate an API key (use this when the builder needs to trade on behalf of the user):
+#### 2. Generate an API Key
 
 ```bash
 python authorize.py \
@@ -63,28 +68,10 @@ python authorize.py \
   --authorize \
   --user-privkey 0xYOUR_USER_WALLET_PRIVATE_KEY \
   --main-account-id 0xFUNDING_ACCOUNT_ADDRESS \
-  --builder-account-id 0xBUILDER_ACCOUNT_ADDRESS \
-  --builder-api-signer-privkey 0xFRESH_SIGNER_PRIVATE_KEY
-```
-
-This will output an API key (e.g., `grvt_api_...`) that you'll use for authenticated requests.
-
-Alternatively, to authorize a builder's fee rates without creating an API key:
-
-```bash
-python authorize.py \
-  --env testnet \
-  --authorize-only \
-  --user-privkey 0xYOUR_USER_WALLET_PRIVATE_KEY \
-  --main-account-id 0xFUNDING_ACCOUNT_ADDRESS \
   --builder-account-id 0xBUILDER_ACCOUNT_ADDRESS
 ```
 
-**📖 See [docs/AUTHORIZE_README.md](docs/AUTHORIZE_README.md) for complete documentation**
-
-### 3. Create an Order
-
-Use the generated API key to create and submit orders:
+#### 3. Create an Order
 
 ```bash
 python grvt_create_order_api.py \
@@ -94,80 +81,94 @@ python grvt_create_order_api.py \
   --order-file create_order_data.json
 ```
 
-**📖 See [docs/CREATE_ORDER_README.md](docs/CREATE_ORDER_README.md) for complete documentation**
+---
+
+### TypeScript
+
+#### Prerequisites
+
+- Node.js 18+
+- Install dependencies:
+
+```bash
+cd typescript
+npm install
+```
+
+#### 1. Wallet Login
+
+```bash
+npx tsx src/wallet_login.ts \
+  --env testnet \
+  --wallet-privkey 0xYOUR_USER_WALLET_PRIVATE_KEY \
+  --no-verify
+```
+
+#### 2. Generate an API Key
+
+```bash
+npx tsx src/authorize.ts \
+  --env testnet \
+  --authorize \
+  --user-privkey 0xYOUR_USER_WALLET_PRIVATE_KEY \
+  --main-account-id 0xFUNDING_ACCOUNT_ADDRESS \
+  --builder-account-id 0xBUILDER_ACCOUNT_ADDRESS
+```
+
+#### 3. Create an Order
+
+```bash
+npx tsx src/grvt_create_order_api.ts \
+  --env testnet \
+  --api-key YOUR_API_KEY \
+  --private-key YOUR_PRIVATE_KEY \
+  --order-file create_order_data.json
+```
 
 ## Scripts
 
-### 1. wallet_login.py - Wallet Login
+### 1. Wallet Login
 
-**Purpose:** Authenticate with the user's main wallet using EIP-712. Returns a session cookie and off-chain account ID for API access, and `funding_account_address` which is used as `--main-account-id` in the authorize step.
+**Purpose:** Authenticate with the user's main wallet using EIP-712. Returns a session cookie, off-chain account ID, and `funding_account_address` (used as `--main-account-id` in the authorize step).
+
+| Python | TypeScript |
+|--------|------------|
+| `python/wallet_login.py` | `typescript/src/wallet_login.ts` |
 
 **Key Features:**
-- EIP-712 `WalletLogin` signature (primary type: `WalletLogin(address signer, uint32 nonce, int64 expiration)`)
-- Returns `funding_account_address` in response body — use as `main_account_id` in `authorize.py`
-- Replay prevention via server-side nonce consumption (Redis SETNX)
+- EIP-712 `WalletLogin` signature (`WalletLogin(address signer, uint32 nonce, int64 expiration)`)
+- Returns `funding_account_address` — use as `main_account_id` in the authorize step
+- Replay prevention via server-side nonce consumption
 - Short-lived signatures (max 5 minutes, server-enforced)
 
-**Quick Example:**
-```bash
-# Login and get funding_account_address (= main_account_id for authorize step)
-python wallet_login.py --env testnet \
-  --wallet-privkey 0xYOUR_WALLET_PRIVATE_KEY \
-  --no-verify
-
-# Output includes:
-#   Funding account address: 0xabc123...   ← pass as --main-account-id to authorize.py
-```
-
-**Chain ID Configuration:**
-- dev/staging: 327
-- testnet: 326
-- prod: 325
-
-**📖 Full Documentation:** [docs/WALLET_LOGIN_README.md](docs/WALLET_LOGIN_README.md)
+**Full Documentation:** [docs/WALLET_LOGIN_README.md](docs/WALLET_LOGIN_README.md)
 
 ---
 
-### 2. authorize.py - Builder Authorization
+### 2. Builder Authorization
 
-**Purpose:** Authorize a builder to act on behalf of a user's account. Uses `funding_account_address` from wallet login as `--main-account-id`.
+**Purpose:** Authorize a builder to act on behalf of a user's account.
+
+| Python | TypeScript |
+|--------|------------|
+| `python/authorize.py` | `typescript/src/authorize.ts` |
 
 **Key Features:**
-- EIP-712 signature-based authorization (two paths: with or without API key creation)
+- Two authorization paths: with API key (`--authorize`) or without (`--authorize-only`)
+- Auto-generates builder API signer keypair if not provided
 - Multi-environment support (dev, staging, testnet, prod)
-- Automatic chain ID configuration per environment
-- Session cookie and account ID extraction
-- Test API access with authenticated endpoints
 
-**Quick Example:**
-```bash
-# Authorize and create API key (AddAccountSignerWithBuilder)
-# --main-account-id = funding_account_address from wallet_login
-python authorize.py --env testnet --authorize \
-  --user-privkey 0x... \
-  --main-account-id 0xFUNDING_ACCOUNT_ADDRESS \
-  --builder-account-id 0x... \
-  --builder-api-signer-privkey 0x...
-
-# Authorize builder without API key (AuthorizeBuilder)
-python authorize.py --env testnet --authorize-only \
-  --user-privkey 0x... \
-  --main-account-id 0xFUNDING_ACCOUNT_ADDRESS \
-  --builder-account-id 0x...
-```
-
-**Chain ID Configuration:**
-- dev/staging: 327
-- testnet: 326
-- prod: 325
-
-**📖 Full Documentation:** [docs/AUTHORIZE_README.md](docs/AUTHORIZE_README.md)
+**Full Documentation:** [docs/AUTHORIZE_README.md](docs/AUTHORIZE_README.md)
 
 ---
 
-### 3. grvt_create_order_api.py - Order Creation
+### 3. Order Creation
 
 **Purpose:** Create and submit signed orders to the GRVT Trading API using API key authentication.
+
+| Python | TypeScript |
+|--------|------------|
+| `python/grvt_create_order_api.py` | `typescript/src/grvt_create_order_api.ts` |
 
 **Key Features:**
 - API key authentication flow
@@ -175,30 +176,8 @@ python authorize.py --env testnet --authorize-only \
 - Multi-leg order support
 - Automatic expiration and nonce updates
 - Instrument metadata fetching
-- Comprehensive error handling
 
-**Quick Example:**
-```bash
-# Basic order creation
-python grvt_create_order_api.py \
-  --env testnet \
-  --api-key YOUR_API_KEY \
-  --private-key YOUR_PRIVATE_KEY \
-  --order-file create_order_data.json
-
-# With auto-updated expiration
-python grvt_create_order_api.py \
-  --env testnet \
-  --api-key YOUR_API_KEY \
-  --private-key YOUR_PRIVATE_KEY \
-  --order-file create_order_data.json \
-  --update-expiration \
-  --expiration-hours 24
-```
-
-**📖 Full Documentation:** [docs/CREATE_ORDER_README.md](docs/CREATE_ORDER_README.md)
-
----
+**Full Documentation:** [docs/CREATE_ORDER_README.md](docs/CREATE_ORDER_README.md)
 
 ## Environments
 
@@ -215,92 +194,76 @@ Use `--env` flag to select the environment (default: `testnet`).
 
 ## Complete Integration Flow
 
-Here's the recommended end-to-end flow from wallet login through to order creation:
-
-### Step 1: Login with user's wallet → get `funding_account_address`
-
-```bash
-export USER_WALLET_PRIVKEY="0x..."   # User's main signing wallet private key
-
-python wallet_login.py --env testnet \
-  --wallet-privkey "$USER_WALLET_PRIVKEY" \
-  --no-verify
-
-# Output includes:
-#   Funding account address: 0xabc123...   ← this is your main_account_id
-#
-# Set it for the next step:
-export MAIN_ACCOUNT="0xabc123..."    # funding_account_address from step 1 output
+```
+1. wallet_login  →  funding_account_address  (= main_account_id)
+2. authorize     →  api_key                  (builder authorised for user)
+3. trade         →  orders submitted on behalf of user
 ```
 
-### Step 2: Authorize builder → `main_account_id` = `funding_account_address` from step 1
+### Step 1: Login with user's wallet
 
+**Python:**
 ```bash
-export BUILDER_ACCOUNT="0x..."          # Builder's funding account address
-export BUILDER_SIGNER_PRIVKEY="0x..."   # Fresh keypair for the API key (auto-generated if omitted)
+cd python
+python wallet_login.py --env testnet \
+  --wallet-privkey "$USER_WALLET_PRIVKEY" --no-verify
+```
 
-# --main-account-id is the funding_account_address returned by wallet_login above
-python authorize.py --env testnet \
-  --authorize \
+**TypeScript:**
+```bash
+cd typescript
+npx tsx src/wallet_login.ts --env testnet \
+  --wallet-privkey "$USER_WALLET_PRIVKEY" --no-verify
+```
+
+### Step 2: Authorize builder
+
+**Python:**
+```bash
+python authorize.py --env testnet --authorize \
   --user-privkey "$USER_WALLET_PRIVKEY" \
   --main-account-id "$MAIN_ACCOUNT" \
-  --builder-account-id "$BUILDER_ACCOUNT" \
-  --builder-api-signer-privkey "$BUILDER_SIGNER_PRIVKEY"
+  --builder-account-id "$BUILDER_ACCOUNT"
+```
 
-# Save the output API key
-export GRVT_API_KEY="grvt_api_..."
+**TypeScript:**
+```bash
+npx tsx src/authorize.ts --env testnet --authorize \
+  --user-privkey "$USER_WALLET_PRIVKEY" \
+  --main-account-id "$MAIN_ACCOUNT" \
+  --builder-account-id "$BUILDER_ACCOUNT"
 ```
 
 ### Step 3: Create orders
 
-Edit `create_order_data.json`:
-
-```json
-{
-    "order": {
-        "sub_account_id": "YOUR_SUB_ACCOUNT_ID",
-        "is_market": true,
-        "time_in_force": "GOOD_TILL_TIME",
-        "post_only": false,
-        "reduce_only": false,
-        "legs": [
-            {
-                "instrument": "BTC_USDT_Perp",
-                "size": "0.1",
-                "limit_price": "0",
-                "is_buying_asset": true
-            }
-        ],
-        "signature": {
-            "expiration": "1767672926708000000",
-            "nonce": 1234562
-        },
-        "metadata": {
-            "client_order_id": "23043"
-        },
-        "builder": "0xYOUR_BUILDER_ADDRESS",
-        "builder_fee": "0.1"
-    }
-}
-```
-
-### Step 4: Submit the Order
-
+**Python:**
 ```bash
-export ORDER_SIGNING_KEY="0x..."  # Private key for signing orders
-
-python grvt_create_order_api.py \
-  --env testnet \
+python grvt_create_order_api.py --env testnet \
   --api-key "$GRVT_API_KEY" \
   --private-key "$ORDER_SIGNING_KEY" \
   --order-file create_order_data.json \
-  --update-expiration \
-  --expiration-hours 24
+  --update-expiration --expiration-hours 24
 ```
 
-## Security Best Practices
+**TypeScript:**
+```bash
+npx tsx src/grvt_create_order_api.ts --env testnet \
+  --api-key "$GRVT_API_KEY" \
+  --private-key "$ORDER_SIGNING_KEY" \
+  --order-file create_order_data.json \
+  --update-expiration --expiration-hours 24
+```
 
-⚠️ **IMPORTANT SECURITY NOTES:**
+## Technology Stack
+
+| | Python | TypeScript |
+|---|--------|------------|
+| **HTTP Client** | `requests` | `fetch` (built-in) |
+| **Ethereum/EIP-712** | `eth-account` | `ethers` v6 |
+| **CLI Parsing** | `argparse` (built-in) | `commander` |
+| **Runtime** | Python 3.7+ | Node.js 18+ / `tsx` |
+
+## Security Best Practices
 
 1. **Never commit private keys or API keys to version control**
 2. **Use environment variables** for sensitive data
@@ -322,24 +285,21 @@ python grvt_create_order_api.py \
 ### Common Issues
 
 #### "Missing required args for --authorize"
-- Ensure all four required arguments are provided when using `--authorize`
-- See [docs/AUTHORIZE_README.md](docs/AUTHORIZE_README.md#missing-required-arguments)
+- Ensure all required arguments are provided when using `--authorize`
+- See [docs/AUTHORIZE_README.md](docs/AUTHORIZE_README.md)
 
 #### "Could not find gravity cookie"
 - API key may be invalid or expired
 - Check you're using the correct environment
-- See [docs/AUTHORIZE_README.md](docs/AUTHORIZE_README.md#login-cookie-not-found)
 
 #### "Instrument not found"
 - Verify instrument name is correct and case-sensitive
 - Check instrument is active in your environment
-- See [docs/CREATE_ORDER_README.md](docs/CREATE_ORDER_README.md#troubleshooting)
 
 #### "Signature verification failed"
 - Ensure private key matches the signer address
 - Check expiration timestamp is in the future
 - Verify nonce is unique
-- See [docs/CREATE_ORDER_README.md](docs/CREATE_ORDER_README.md#troubleshooting)
 
 ### Getting Help
 
@@ -348,37 +308,17 @@ python grvt_create_order_api.py \
 3. Verify your environment configuration and credentials
 4. Test with smaller values on testnet first
 
-## Development
+## Project Dependencies
 
-### Running Tests
-
-```bash
-# Test authorization (without actual keys)
-python authorize.py --help
-
-# Test order creation (without actual keys)
-python grvt_create_order_api.py --help
-```
-
-### Project Dependencies
-
-- **requests** - HTTP client for API calls
-- **eth-account** - Ethereum key management and EIP-712 signing
-
-Install with:
+### Python
 ```bash
 pip install requests eth-account
 ```
 
-## Contributing
-
-When modifying these scripts:
-
-1. **Test on testnet** before committing changes
-2. **Update documentation** if you add new features or arguments
-3. **Follow security best practices** for key handling
-4. **Validate against all environments** (dev, staging, testnet)
-5. **Add error handling** for new edge cases
+### TypeScript
+```bash
+cd typescript && npm install
+```
 
 ## License
 
@@ -389,72 +329,3 @@ These examples are provided as-is for testing and integration purposes with GRVT
 - **GRVT Website:** https://grvt.io/
 - **API Documentation:** https://api-docs.grvt.io/
 - **Discord Community:** [Join GRVT Discord](https://discord.gg/grvt)
-
----
-
-## Quick Reference
-
-### wallet_login.py Commands
-
-```bash
-# Get help
-python wallet_login.py --help
-
-# Login and get funding_account_address (= main_account_id for authorize step)
-python wallet_login.py --env testnet \
-  --wallet-privkey 0xYOUR_WALLET_PRIVATE_KEY \
-  --no-verify
-```
-
----
-
-### authorize.py Commands
-
-```bash
-# Get help
-python authorize.py --help
-
-# Authorize and create API key (--main-account-id = funding_account_address from wallet_login)
-python authorize.py --env testnet --authorize \
-  --user-privkey 0x... \
-  --main-account-id 0xFUNDING_ACCOUNT_ADDRESS \
-  --builder-account-id 0x... \
-  --builder-api-signer-privkey 0x...
-
-# Authorize builder without API key
-python authorize.py --env testnet --authorize-only \
-  --user-privkey 0x... \
-  --main-account-id 0xFUNDING_ACCOUNT_ADDRESS \
-  --builder-account-id 0x...
-```
-
----
-
-### grvt_create_order_api.py Commands
-
-```bash
-# Get help
-python grvt_create_order_api.py --help
-
-# Create order
-python grvt_create_order_api.py \
-  --env testnet \
-  --api-key YOUR_API_KEY \
-  --private-key YOUR_PRIVATE_KEY \
-  --order-file create_order_data.json
-
-# Create order with auto-expiration
-python grvt_create_order_api.py \
-  --env testnet \
-  --api-key YOUR_API_KEY \
-  --private-key YOUR_PRIVATE_KEY \
-  --order-file create_order_data.json \
-  --update-expiration \
-  --expiration-hours 24
-```
-
----
-
-**Ready to get started?** Check out the detailed documentation:
-- 📘 [Authorization Guide](docs/AUTHORIZE_README.md)
-- 📗 [Order Creation Guide](docs/CREATE_ORDER_README.md)
