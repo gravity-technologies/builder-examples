@@ -2,9 +2,9 @@
 
 Scripts that authenticate to GRVT using an EIP-712 wallet signature (`POST /auth/wallet/login`). Available in **Python** and **TypeScript**.
 
-| Python | TypeScript |
-|--------|------------|
-| `wallet_login.py` | `typescript/src/wallet_login.ts` |
+| Python                   | TypeScript                       |
+|--------------------------|----------------------------------|
+| `python/wallet_login.py` | `typescript/src/wallet_login.ts` |
 
 ## Overview
 
@@ -14,7 +14,7 @@ main-wallet holder authenticate by signing a short-lived message directly. It re
 
 - **Session cookie** (`gravity=...`) — for authenticated Trading API calls
 - **Off-chain account ID** (`X-Grvt-Account-Id`) — required header for API requests
-- **`funding_account_address`** — the user's on-chain main account address; pass this as `--main-account-id` in `authorize.py`
+- **`funding_account_address`** — the user's on-chain main account address; pass this as `--main-account-id` in the authorize script
 
 ### How it works
 
@@ -35,11 +35,11 @@ Wallet login is the **first step** in the builder integration. Use the `funding_
 3. trade         →  orders submitted on behalf of user
 ```
 
-| Step                        | Script                     | Key output                                           |
-|-----------------------------|----------------------------|------------------------------------------------------|
-| 1. Login with user's wallet | `wallet_login.py` / `wallet_login.ts`                     | `funding_account_address` → use as `main_account_id` |
-| 2. Authorize builder        | `authorize.py --authorize` / `authorize.ts --authorize`    | `api_key`                                            |
-| 3. Create orders            | `grvt_create_order_api.py` / `grvt_create_order_api.ts`   | order confirmation                                   |
+| Step                        | Script                                                   | Key output                                            |
+|-----------------------------|----------------------------------------------------------|-------------------------------------------------------|
+| 1. Login with user's wallet | `python/wallet_login.py` / `typescript/src/wallet_login.ts`                    | `funding_account_address` → use as `main_account_id`  |
+| 2. Authorize builder        | `python/authorize.py --authorize` / `typescript/src/authorize.ts --authorize`  | `api_key`                                             |
+| 3. Create orders            | `python/grvt_create_order_api.py` / `typescript/src/grvt_create_order_api.ts` | order confirmation                                    |
 
 ### EIP-712 structure
 
@@ -95,14 +95,16 @@ cd typescript && npm install
 
 ### Basic login (derives address from private key)
 
-**Python:**
+**Python** (from `python/` directory):
 ```bash
+cd python
 python wallet_login.py --env testnet \
   --wallet-privkey 0xYOUR_WALLET_PRIVATE_KEY
 ```
 
-**TypeScript:**
+**TypeScript** (from `typescript/` directory):
 ```bash
+cd typescript
 npx tsx src/wallet_login.ts --env testnet \
   --wallet-privkey 0xYOUR_WALLET_PRIVATE_KEY
 ```
@@ -128,7 +130,7 @@ npx tsx src/wallet_login.ts --env testnet \
 ```bash
 export WALLET_PRIVKEY="0x..."
 
-# Python
+# Python (from python/ directory)
 python wallet_login.py --env testnet --wallet-privkey "$WALLET_PRIVKEY"
 
 # TypeScript (from typescript/ directory)
@@ -214,7 +216,7 @@ and returns the following JSON body:
 ```
 
 `funding_account_address` is the user's **main account** (chain account address) — pass it
-as `--main-account-id` when calling `authorize.py`. The session cookie and header are used
+as `--main-account-id` when calling the authorize script. The session cookie and header are used
 for all subsequent authenticated API calls:
 
 ```
@@ -246,7 +248,7 @@ JSON:
 Session gravity cookie:   gravity=...
 X-Grvt-Account-Id:        0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
 Funding account address:  0xabc123...
-  (use as --main-account-id in authorize.py)
+  (use as --main-account-id in the authorize script)
 
 == Get Sub Accounts ==
 URL: POST https://trades.testnet.grvt.io/full/v1/get_sub_accounts
@@ -269,15 +271,15 @@ Sub accounts: {...}
 
 ## Script Functions
 
-| Function | Python | TypeScript |
-|----------|--------|------------|
+| Function              | Python                   | TypeScript             |
+|-----------------------|--------------------------|------------------------|
 | Build EIP-712 payload | `build_eip712_payload()` | `buildEip712Payload()` |
-| Sign typed data | `sign_eip712()` | `signEip712()` |
-| Wallet login | `wallet_login()` | `walletLogin()` |
-| Verify session | `get_sub_accounts()` | `getSubAccounts()` |
-| Normalize addresses | `ensure_0x()` | `ensure0x()` |
-| Parse cookie | `parse_gravity_cookie()` | `parseGravityCookie()` |
-| Debug HTTP | `print_http()` | `printHttp()` |
+| Sign typed data       | `sign_eip712()`          | `signEip712()`         |
+| Wallet login          | `wallet_login()`         | `walletLogin()`        |
+| Verify session        | `get_sub_accounts()`     | `getSubAccounts()`     |
+| Normalize addresses   | `ensure_0x()`            | `ensure0x()`           |
+| Parse cookie          | `parse_gravity_cookie()` | `parseGravityCookie()` |
+| Debug HTTP            | `print_http()`           | `printHttp()`          |
 
 ## Troubleshooting
 

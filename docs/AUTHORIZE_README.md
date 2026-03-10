@@ -2,9 +2,9 @@
 
 Scripts for testing the GRVT Builder integration flow, including authorization, authentication, and API access. Available in **Python** and **TypeScript**.
 
-| Python | TypeScript |
-|--------|------------|
-| `authorize.py` | `typescript/src/authorize.ts` |
+| Python                | TypeScript                    |
+|-----------------------|-------------------------------|
+| `python/authorize.py` | `typescript/src/authorize.ts` |
 
 ## Overview
 
@@ -17,10 +17,10 @@ These scripts demonstrate the complete flow for integrating with GRVT's Builder 
 
 ### When to use each authorization path
 
-| Path | Flag | Creates API key | EIP-712 type | Use when |
-|------|------|-----------------|--------------|----------|
-| With API key | `--authorize` | Yes | `AddAccountSignerWithBuilder` | Builder needs to trade on behalf of the user |
-| Without API key | `--authorize-only` | No | `AuthorizeBuilder` | Only registering the builder's fee rates |
+| Path            | Flag               | Creates API key | EIP-712 type                  | Use when                                      |
+|-----------------|--------------------|-----------------|-------------------------------|-----------------------------------------------|
+| With API key    | `--authorize`      | Yes             | `AddAccountSignerWithBuilder` | Builder needs to trade on behalf of the user  |
+| Without API key | `--authorize-only` | No              | `AuthorizeBuilder`            | Only registering the builder's fee rates      |
 
 ## Prerequisites
 
@@ -51,13 +51,15 @@ The script supports multiple environments:
 
 If you already have an API key, you can skip the authorization step:
 
-**Python:**
+**Python** (from `python/` directory):
 ```bash
+cd python
 python authorize.py --env testnet --api-key YOUR_API_KEY
 ```
 
-**TypeScript:**
+**TypeScript** (from `typescript/` directory):
 ```bash
+cd typescript
 npx tsx src/authorize.ts --env testnet --api-key YOUR_API_KEY
 ```
 
@@ -351,6 +353,9 @@ export USER_PRIVKEY="0x..."
 export MAIN_ACCOUNT="0x..."
 export BUILDER_ACCOUNT="0x..."
 
+# Python (from python/ directory)
+cd python
+
 # Option 1: Let the script auto-generate a signer keypair
 python authorize.py --env testnet \
   --authorize \
@@ -376,36 +381,41 @@ Once you have an API key, you can skip the authorization step:
 ```bash
 export GRVT_API_KEY="grvt_api_..."
 
+# Python (from python/ directory)
 python authorize.py --env testnet --api-key "$GRVT_API_KEY"
+
+# TypeScript (from typescript/ directory)
+npx tsx src/authorize.ts --env testnet --api-key "$GRVT_API_KEY"
 ```
 
 ### Testing Different Environments
 
 ```bash
-# Development
+# Python (from python/ directory)
 python authorize.py --env dev --api-key YOUR_API_KEY
-
-# Staging
 python authorize.py --env staging --api-key YOUR_API_KEY
-
-# Production
 python authorize.py --env prod --api-key YOUR_API_KEY
+
+# TypeScript (from typescript/ directory)
+npx tsx src/authorize.ts --env dev --api-key YOUR_API_KEY
+npx tsx src/authorize.ts --env staging --api-key YOUR_API_KEY
+npx tsx src/authorize.ts --env prod --api-key YOUR_API_KEY
 ```
 
 ## Script Functions
 
-| Function | Python | TypeScript |
-|----------|--------|------------|
-| Build EIP-712 payload (with API key) | `build_eip712_payload()` | `buildEip712Payload()` |
-| Build EIP-712 payload (authorize only) | `build_eip712_payload_authorize_only()` | `buildEip712PayloadAuthorizeOnly()` |
-| Sign typed data | `sign_eip712()` | `signEip712()` |
-| Authorize builder (with API key) | `authorize_builder()` | `authorizeBuilder()` |
-| Authorize builder (no API key) | `authorize_builder_only()` | `authorizeBuilderOnly()` |
-| Login with API key | `login_with_api_key()` | `loginWithApiKey()` |
-| Fetch sub-accounts | `get_sub_accounts()` | `getSubAccounts()` |
-| Normalize addresses | `ensure_0x()` | `ensure0x()` |
-| Parse cookie | `parse_gravity_cookie()` | `parseGravityCookie()` |
-| Debug HTTP | `print_http()` | `printHttp()` |
+| Function                                | Python                                    | TypeScript                          |
+|-----------------------------------------|-------------------------------------------|-------------------------------------|
+| Build EIP-712 payload (with API key)    | `build_eip712_payload()`                  | `buildEip712Payload()`              |
+| Build EIP-712 payload (authorize only)  | `build_eip712_payload_authorize_only()`   | `buildEip712PayloadAuthorizeOnly()` |
+| Sign typed data                         | `sign_eip712()`                           | `signEip712()`                      |
+| Authorize builder (with API key)        | `authorize_builder()`                     | `authorizeBuilder()`                |
+| Authorize builder (no API key)          | `authorize_builder_only()`                | `authorizeBuilderOnly()`            |
+| Login with API key                      | `login_with_api_key()`                    | `loginWithApiKey()`                 |
+| Fetch sub-accounts                      | `get_sub_accounts()`                      | `getSubAccounts()`                  |
+| Normalize addresses                     | `ensure_0x()`                             | `ensure0x()`                        |
+| Parse cookie                            | `parse_gravity_cookie()`                  | `parseGravityCookie()`              |
+| Debug HTTP                              | `print_http()`                            | `printHttp()`                       |
 
 ## Contributing
 

@@ -2,9 +2,9 @@
 
 Scripts for creating orders on the GRVT Trading API using API Key authentication, following the official [GRVT Trading API documentation](https://api-docs.grvt.io/trading_api/#create-order). Available in **Python** and **TypeScript**.
 
-| Python | TypeScript |
-|--------|------------|
-| `grvt_create_order_api.py` | `typescript/src/grvt_create_order_api.ts` |
+| Python                            | TypeScript                                |
+|-----------------------------------|-------------------------------------------|
+| `python/grvt_create_order_api.py` | `typescript/src/grvt_create_order_api.ts` |
 
 ## Overview
 
@@ -29,7 +29,7 @@ cd typescript && npm install
 
 Before using this script, you need:
 
-1. **API Key** - Obtained through the builder authorization flow (see `authorize.py`)
+1. **API Key** - Obtained through the builder authorization flow (see `python/authorize.py` or `typescript/src/authorize.ts`)
 2. **Private Key** - Your Ethereum private key for signing orders
 3. **Order Data** - A JSON file with your order details (see `create_order_data.json`)
 
@@ -37,8 +37,9 @@ Before using this script, you need:
 
 ### Basic Usage
 
-**Python:**
+**Python** (from `python/` directory):
 ```bash
+cd python
 python grvt_create_order_api.py \
   --env testnet \
   --api-key YOUR_API_KEY \
@@ -46,8 +47,9 @@ python grvt_create_order_api.py \
   --order-file create_order_data.json
 ```
 
-**TypeScript:**
+**TypeScript** (from `typescript/` directory):
 ```bash
+cd typescript
 npx tsx src/grvt_create_order_api.ts \
   --env testnet \
   --api-key YOUR_API_KEY \
@@ -81,14 +83,14 @@ npx tsx src/grvt_create_order_api.ts \
 
 ## Command Line Arguments
 
-| Argument | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `--env` | No | `testnet` | GRVT environment: `dev`, `staging`, `testnet`, or `prod` |
-| `--api-key` | **Yes** | - | API key for authentication |
-| `--private-key` | **Yes** | - | Private key for signing orders (hex format, with or without 0x prefix) |
-| `--order-file` | No | `create_order_data.json` | Path to order data JSON file |
-| `--update-expiration` | No | `false` | Update order expiration and nonce before signing |
-| `--expiration-hours` | No | `24` | Hours until order expiration (only used with --update-expiration) |
+| Argument              | Required | Default                  | Description                                                            |
+|-----------------------|----------|--------------------------|------------------------------------------------------------------------|
+| `--env`               | No       | `testnet`                | GRVT environment: `dev`, `staging`, `testnet`, or `prod`               |
+| `--api-key`           | **Yes**  | -                        | API key for authentication                                             |
+| `--private-key`       | **Yes**  | -                        | Private key for signing orders (hex format, with or without 0x prefix) |
+| `--order-file`        | No       | `create_order_data.json` | Path to order data JSON file                                           |
+| `--update-expiration` | No       | `false`                  | Update order expiration and nonce before signing                       |
+| `--expiration-hours`  | No       | `24`                     | Hours until order expiration (only used with --update-expiration)      |
 
 ## Order Data Format
 
@@ -182,12 +184,12 @@ Submits the signed order to `/full/v1/create_order` with authenticated headers.
 
 ## Environment Endpoints
 
-| Environment | Chain ID | Edge API | Trading API | Market Data API |
-|-------------|----------|----------|-------------|-----------------|
-| **dev** | 327 | edge.dev.gravitymarkets.io | trades.dev.gravitymarkets.io | market-data.dev.gravitymarkets.io |
-| **staging** | 327 | edge.staging.gravitymarkets.io | trades.staging.gravitymarkets.io | market-data.staging.gravitymarkets.io |
-| **testnet** | 326 | edge.testnet.grvt.io | trades.testnet.grvt.io | market-data.testnet.grvt.io |
-| **prod** | 325 | edge.grvt.io | trades.grvt.io | market-data.grvt.io |
+| Environment | Chain ID | Edge API                       | Trading API                      | Market Data API                       |
+|-------------|----------|--------------------------------|----------------------------------|---------------------------------------|
+| **dev**     | 327      | edge.dev.gravitymarkets.io     | trades.dev.gravitymarkets.io     | market-data.dev.gravitymarkets.io     |
+| **staging** | 327      | edge.staging.gravitymarkets.io | trades.staging.gravitymarkets.io | market-data.staging.gravitymarkets.io |
+| **testnet** | 326      | edge.testnet.grvt.io           | trades.testnet.grvt.io           | market-data.testnet.grvt.io           |
+| **prod**    | 325      | edge.grvt.io                   | trades.grvt.io                   | market-data.grvt.io                   |
 
 ## Example Output
 
@@ -251,9 +253,11 @@ The script includes comprehensive error handling for:
 
 ## Getting an API Key
 
-If you don't have an API key, use the `authorize.py` script to generate one:
+If you don't have an API key, use the authorize script to generate one:
 
+**Python** (from `python/` directory):
 ```bash
+cd python
 python authorize.py \
   --env testnet \
   --authorize \
@@ -263,12 +267,26 @@ python authorize.py \
   --builder-api-signer-privkey A_FRESH_SIGNER_PRIVATE_KEY
 ```
 
-This will output an API key that you can use with `grvt_create_order_api.py`.
+**TypeScript** (from `typescript/` directory):
+```bash
+cd typescript
+npx tsx src/authorize.ts \
+  --env testnet \
+  --authorize \
+  --user-privkey YOUR_USER_PRIVATE_KEY \
+  --main-account-id YOUR_MAIN_ACCOUNT_ADDRESS \
+  --builder-account-id YOUR_BUILDER_ACCOUNT_ADDRESS \
+  --builder-api-signer-privkey A_FRESH_SIGNER_PRIVATE_KEY
+```
+
+This will output an API key that you can use with the order creation script.
 
 ## Related Scripts
 
-- **authorize.py** - Generate API keys through builder authorization
-- **grvt_order_with_builder_fee_signer.py** - Original order signing script (uses private key only, no API key authentication)
+| Script             | Python                              | TypeScript                                |
+|--------------------|-------------------------------------|-------------------------------------------|
+| Builder authorize  | `python/authorize.py`               | `typescript/src/authorize.ts`             |
+| Order creation     | `python/grvt_create_order_api.py`   | `typescript/src/grvt_create_order_api.ts` |
 
 ## API Documentation
 
