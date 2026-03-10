@@ -1,10 +1,14 @@
 # GRVT Builder Codes / Trading API Smoke Test
 
-A Python script for testing the GRVT Builder integration flow, including authorization, authentication, and API access.
+Scripts for testing the GRVT Builder integration flow, including authorization, authentication, and API access. Available in **Python** and **TypeScript**.
+
+| Python                | TypeScript                    |
+|-----------------------|-------------------------------|
+| `python/authorize.py` | `typescript/src/authorize.ts` |
 
 ## Overview
 
-This script (`authorize.py`) demonstrates the complete flow for integrating with GRVT's Builder Codes system:
+These scripts demonstrate the complete flow for integrating with GRVT's Builder Codes system:
 
 1. **Authorization (with API key)**: Generate an API key by having a user authorize a builder via `AddAccountSignerWithBuilder` (EIP-712 signature) — use `--authorize`
 2. **Authorization (without API key)**: Authorize a builder's fee rates on-chain via `AuthorizeBuilder` (EIP-712 signature) without creating an API key — use `--authorize-only`
@@ -13,17 +17,23 @@ This script (`authorize.py`) demonstrates the complete flow for integrating with
 
 ### When to use each authorization path
 
-| Path | Flag | Creates API key | EIP-712 type | Use when |
-|------|------|-----------------|--------------|----------|
-| With API key | `--authorize` | Yes | `AddAccountSignerWithBuilder` | Builder needs to trade on behalf of the user |
-| Without API key | `--authorize-only` | No | `AuthorizeBuilder` | Only registering the builder's fee rates |
+| Path            | Flag               | Creates API key | EIP-712 type                  | Use when                                      |
+|-----------------|--------------------|-----------------|-------------------------------|-----------------------------------------------|
+| With API key    | `--authorize`      | Yes             | `AddAccountSignerWithBuilder` | Builder needs to trade on behalf of the user  |
+| Without API key | `--authorize-only` | No              | `AuthorizeBuilder`            | Only registering the builder's fee rates      |
 
 ## Prerequisites
 
+**Python:**
 - Python 3.7+
-- Required packages:
   ```bash
   pip install requests eth-account
+  ```
+
+**TypeScript:**
+- Node.js 18+
+  ```bash
+  cd typescript && npm install
   ```
 
 ## Configuration
@@ -41,14 +51,23 @@ The script supports multiple environments:
 
 If you already have an API key, you can skip the authorization step:
 
+**Python** (from `python/` directory):
 ```bash
+cd python
 python authorize.py --env testnet --api-key YOUR_API_KEY
+```
+
+**TypeScript** (from `typescript/` directory):
+```bash
+cd typescript
+npx tsx src/authorize.ts --env testnet --api-key YOUR_API_KEY
 ```
 
 ### Option B: Full Authorization Flow (with API key)
 
 Generate a new API key and test the complete flow:
 
+**Python:**
 ```bash
 python authorize.py --env testnet \
   --authorize \
@@ -57,24 +76,33 @@ python authorize.py --env testnet \
   --builder-account-id 0xYOUR_BUILDER_MAIN_ACCOUNT_ADDRESS
 ```
 
-**Note:** If you don't provide `--builder-api-signer-privkey`, a new keypair will be automatically generated and displayed. You can optionally provide your own:
-
+**TypeScript:**
 ```bash
-# With a specific signer private key
-python authorize.py --env testnet \
+npx tsx src/authorize.ts --env testnet \
   --authorize \
   --user-privkey 0xYOUR_USERS_MAIN_ACCOUNT_PRIVKEY \
   --main-account-id 0xUSERS_MAIN_ACCOUNT_ADDRESS \
-  --builder-account-id 0xYOUR_BUILDER_MAIN_ACCOUNT_ADDRESS \
-  --builder-api-signer-privkey 0xA_FRESH_SIGNER_PRIVKEY
+  --builder-account-id 0xYOUR_BUILDER_MAIN_ACCOUNT_ADDRESS
 ```
+
+**Note:** If you don't provide `--builder-api-signer-privkey`, a new keypair will be automatically generated and displayed.
 
 ### Option C: Authorize Builder Without API Key
 
 Authorize a builder's fee rates on-chain without creating an API key. No signer keypair is needed:
 
+**Python:**
 ```bash
 python authorize.py --env testnet \
+  --authorize-only \
+  --user-privkey 0xYOUR_USERS_MAIN_ACCOUNT_PRIVKEY \
+  --main-account-id 0xUSERS_MAIN_ACCOUNT_ADDRESS \
+  --builder-account-id 0xYOUR_BUILDER_MAIN_ACCOUNT_ADDRESS
+```
+
+**TypeScript:**
+```bash
+npx tsx src/authorize.ts --env testnet \
   --authorize-only \
   --user-privkey 0xYOUR_USERS_MAIN_ACCOUNT_PRIVKEY \
   --main-account-id 0xUSERS_MAIN_ACCOUNT_ADDRESS \
@@ -325,6 +353,9 @@ export USER_PRIVKEY="0x..."
 export MAIN_ACCOUNT="0x..."
 export BUILDER_ACCOUNT="0x..."
 
+# Python (from python/ directory)
+cd python
+
 # Option 1: Let the script auto-generate a signer keypair
 python authorize.py --env testnet \
   --authorize \
@@ -350,37 +381,41 @@ Once you have an API key, you can skip the authorization step:
 ```bash
 export GRVT_API_KEY="grvt_api_..."
 
+# Python (from python/ directory)
 python authorize.py --env testnet --api-key "$GRVT_API_KEY"
+
+# TypeScript (from typescript/ directory)
+npx tsx src/authorize.ts --env testnet --api-key "$GRVT_API_KEY"
 ```
 
 ### Testing Different Environments
 
 ```bash
-# Development
+# Python (from python/ directory)
 python authorize.py --env dev --api-key YOUR_API_KEY
-
-# Staging
 python authorize.py --env staging --api-key YOUR_API_KEY
-
-# Production
 python authorize.py --env prod --api-key YOUR_API_KEY
+
+# TypeScript (from typescript/ directory)
+npx tsx src/authorize.ts --env dev --api-key YOUR_API_KEY
+npx tsx src/authorize.ts --env staging --api-key YOUR_API_KEY
+npx tsx src/authorize.ts --env prod --api-key YOUR_API_KEY
 ```
 
 ## Script Functions
 
-The script is organized into reusable functions:
-
-- `build_eip712_payload()` - Constructs the EIP-712 `AddAccountSignerWithBuilder` typed data structure (used with `--authorize`)
-- `build_eip712_payload_authorize_only()` - Constructs the EIP-712 `AuthorizeBuilder` typed data structure (used with `--authorize-only`)
-- `sign_eip712()` - Signs typed data with a private key (returns v, r, s)
-- `authorize_builder()` - Calls the builder authorization endpoint and returns an API key
-- `authorize_builder_only()` - Calls the builder authorization endpoint without creating an API key
-- `login_with_api_key()` - Authenticates with an API key
-- `get_sub_accounts()` - Fetches sub-accounts from the Trading API
-- `_ensure_0x()` - Normalizes Ethereum addresses (adds 0x prefix, lowercases)
-- `_hex32()` - Converts integers to 32-byte hex strings
-- `_parse_gravity_cookie()` - Extracts gravity cookie from Set-Cookie header
-- `_print_http()` - Pretty-prints HTTP request/response details
+| Function                                | Python                                    | TypeScript                          |
+|-----------------------------------------|-------------------------------------------|-------------------------------------|
+| Build EIP-712 payload (with API key)    | `build_eip712_payload()`                  | `buildEip712Payload()`              |
+| Build EIP-712 payload (authorize only)  | `build_eip712_payload_authorize_only()`   | `buildEip712PayloadAuthorizeOnly()` |
+| Sign typed data                         | `sign_eip712()`                           | `signEip712()`                      |
+| Authorize builder (with API key)        | `authorize_builder()`                     | `authorizeBuilder()`                |
+| Authorize builder (no API key)          | `authorize_builder_only()`                | `authorizeBuilderOnly()`            |
+| Login with API key                      | `login_with_api_key()`                    | `loginWithApiKey()`                 |
+| Fetch sub-accounts                      | `get_sub_accounts()`                      | `getSubAccounts()`                  |
+| Normalize addresses                     | `ensure_0x()`                             | `ensure0x()`                        |
+| Parse cookie                            | `parse_gravity_cookie()`                  | `parseGravityCookie()`              |
+| Debug HTTP                              | `print_http()`                            | `printHttp()`                       |
 
 ## Contributing
 
