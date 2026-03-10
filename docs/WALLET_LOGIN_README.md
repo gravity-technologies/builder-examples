@@ -1,10 +1,14 @@
 # GRVT Wallet Login
 
-A Python script that authenticates to GRVT using an EIP-712 wallet signature (`POST /auth/wallet/login`).
+Scripts that authenticate to GRVT using an EIP-712 wallet signature (`POST /auth/wallet/login`). Available in **Python** and **TypeScript**.
+
+| Python | TypeScript |
+|--------|------------|
+| `wallet_login.py` | `typescript/src/wallet_login.ts` |
 
 ## Overview
 
-`wallet_login.py` demonstrates EIP-712-based authentication for the main signing wallet.
+These scripts demonstrate EIP-712-based authentication for the main signing wallet.
 Unlike API-key login (which requires a pre-minted key), wallet login lets any registered
 main-wallet holder authenticate by signing a short-lived message directly. It returns:
 
@@ -33,9 +37,9 @@ Wallet login is the **first step** in the builder integration. Use the `funding_
 
 | Step                        | Script                     | Key output                                           |
 |-----------------------------|----------------------------|------------------------------------------------------|
-| 1. Login with user's wallet | `wallet_login.py`          | `funding_account_address` → use as `main_account_id` |
-| 2. Authorize builder        | `authorize.py --authorize` | `api_key`                                            |
-| 3. Create orders            | `grvt_create_order_api.py` | order confirmation                                   |
+| 1. Login with user's wallet | `wallet_login.py` / `wallet_login.ts`                     | `funding_account_address` → use as `main_account_id` |
+| 2. Authorize builder        | `authorize.py --authorize` / `authorize.ts --authorize`    | `api_key`                                            |
+| 3. Create orders            | `grvt_create_order_api.py` / `grvt_create_order_api.ts`   | order confirmation                                   |
 
 ### EIP-712 structure
 
@@ -66,11 +70,16 @@ Wallet login is the **first step** in the builder integration. Use the `funding_
 
 ## Prerequisites
 
+**Python:**
 - Python 3.7+
-- Required packages:
-
 ```bash
 pip install requests eth-account
+```
+
+**TypeScript:**
+- Node.js 18+
+```bash
+cd typescript && npm install
 ```
 
 ## Environments
@@ -86,33 +95,32 @@ pip install requests eth-account
 
 ### Basic login (derives address from private key)
 
+**Python:**
 ```bash
 python wallet_login.py --env testnet \
   --wallet-privkey 0xYOUR_WALLET_PRIVATE_KEY
 ```
 
+**TypeScript:**
+```bash
+npx tsx src/wallet_login.ts --env testnet \
+  --wallet-privkey 0xYOUR_WALLET_PRIVATE_KEY
+```
+
 ### Login without verifying session
 
+**Python:**
 ```bash
 python wallet_login.py --env testnet \
   --wallet-privkey 0xYOUR_WALLET_PRIVATE_KEY \
   --no-verify
 ```
 
-### Provide wallet address explicitly
-
+**TypeScript:**
 ```bash
-python wallet_login.py --env testnet \
+npx tsx src/wallet_login.ts --env testnet \
   --wallet-privkey 0xYOUR_WALLET_PRIVATE_KEY \
-  --wallet-address 0xYOUR_WALLET_ADDRESS
-```
-
-### Custom expiration (must be ≤ 300 seconds / 5 minutes)
-
-```bash
-python wallet_login.py --env testnet \
-  --wallet-privkey 0xYOUR_WALLET_PRIVATE_KEY \
-  --expiration-secs 60
+  --no-verify
 ```
 
 ### Using environment variables
@@ -120,8 +128,11 @@ python wallet_login.py --env testnet \
 ```bash
 export WALLET_PRIVKEY="0x..."
 
-python wallet_login.py --env testnet \
-  --wallet-privkey "$WALLET_PRIVKEY"
+# Python
+python wallet_login.py --env testnet --wallet-privkey "$WALLET_PRIVKEY"
+
+# TypeScript (from typescript/ directory)
+npx tsx src/wallet_login.ts --env testnet --wallet-privkey "$WALLET_PRIVKEY"
 ```
 
 ## Command Line Arguments
@@ -258,14 +269,15 @@ Sub accounts: {...}
 
 ## Script Functions
 
-- `build_eip712_payload()` — Constructs the `WalletLogin` EIP-712 typed data structure
-- `sign_eip712()` — Signs typed data with a private key (returns v, r, s)
-- `wallet_login()` — Calls `POST /auth/wallet/login` and returns `(gravity_cookie, x_grvt_account_id, funding_account_address)`
-- `get_sub_accounts()` — Calls `POST /full/v1/get_sub_accounts` to verify the session
-- `_ensure_0x()` — Normalizes Ethereum addresses (adds 0x prefix, lowercases)
-- `_hex32()` — Converts integers to 32-byte hex strings
-- `_parse_gravity_cookie()` — Extracts gravity cookie from Set-Cookie header
-- `_print_http()` — Pretty-prints HTTP request/response details
+| Function | Python | TypeScript |
+|----------|--------|------------|
+| Build EIP-712 payload | `build_eip712_payload()` | `buildEip712Payload()` |
+| Sign typed data | `sign_eip712()` | `signEip712()` |
+| Wallet login | `wallet_login()` | `walletLogin()` |
+| Verify session | `get_sub_accounts()` | `getSubAccounts()` |
+| Normalize addresses | `ensure_0x()` | `ensure0x()` |
+| Parse cookie | `parse_gravity_cookie()` | `parseGravityCookie()` |
+| Debug HTTP | `print_http()` | `printHttp()` |
 
 ## Troubleshooting
 

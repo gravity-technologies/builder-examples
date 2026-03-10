@@ -1,18 +1,28 @@
 # GRVT Order Creation with API Key Authentication
 
-This script (`grvt_create_order_api.py`) allows you to create orders on the GRVT Trading API using API Key authentication, following the official [GRVT Trading API documentation](https://api-docs.grvt.io/trading_api/#create-order).
+Scripts for creating orders on the GRVT Trading API using API Key authentication, following the official [GRVT Trading API documentation](https://api-docs.grvt.io/trading_api/#create-order). Available in **Python** and **TypeScript**.
+
+| Python | TypeScript |
+|--------|------------|
+| `grvt_create_order_api.py` | `typescript/src/grvt_create_order_api.ts` |
 
 ## Overview
 
-The script combines three key components:
+The scripts combine three key components:
 1. **API Key Authentication** - Login to get session credentials
 2. **EIP-712 Order Signing** - Sign orders with your private key
 3. **Order Submission** - Submit signed orders to the Trading API
 
 ## Installation
 
+**Python:**
 ```bash
 pip install requests eth-account
+```
+
+**TypeScript:**
+```bash
+cd typescript && npm install
 ```
 
 ## Prerequisites
@@ -27,6 +37,7 @@ Before using this script, you need:
 
 ### Basic Usage
 
+**Python:**
 ```bash
 python grvt_create_order_api.py \
   --env testnet \
@@ -35,12 +46,31 @@ python grvt_create_order_api.py \
   --order-file create_order_data.json
 ```
 
+**TypeScript:**
+```bash
+npx tsx src/grvt_create_order_api.ts \
+  --env testnet \
+  --api-key YOUR_API_KEY \
+  --private-key YOUR_PRIVATE_KEY \
+  --order-file create_order_data.json
+```
+
 ### With Auto-Update Expiration
 
-To automatically update the order expiration and nonce before signing:
-
+**Python:**
 ```bash
 python grvt_create_order_api.py \
+  --env testnet \
+  --api-key YOUR_API_KEY \
+  --private-key YOUR_PRIVATE_KEY \
+  --order-file create_order_data.json \
+  --update-expiration \
+  --expiration-hours 24
+```
+
+**TypeScript:**
+```bash
+npx tsx src/grvt_create_order_api.ts \
   --env testnet \
   --api-key YOUR_API_KEY \
   --private-key YOUR_PRIVATE_KEY \
