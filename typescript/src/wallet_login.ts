@@ -190,7 +190,7 @@ async function main(): Promise<number> {
     )
     .option(
       "--env <env>",
-      "Target environment (dev/staging/testnet/prod).",
+      "Target environment (staging/testnet/prod).",
       "testnet"
     )
     .option(

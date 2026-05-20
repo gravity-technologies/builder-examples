@@ -31,7 +31,6 @@ class EnvConfig:
 
 
 ENVS: Dict[str, EnvConfig] = {
-    "dev":     EnvConfig("dev",     "https://edge.dev.gravitymarkets.io",     "https://trades.dev.gravitymarkets.io",     "https://market-data.dev.gravitymarkets.io",     327),
     "staging": EnvConfig("staging", "https://edge.staging.gravitymarkets.io", "https://trades.staging.gravitymarkets.io", "https://market-data.staging.gravitymarkets.io", 327),
     "testnet": EnvConfig("testnet", "https://edge.testnet.grvt.io",           "https://trades.testnet.grvt.io",           "https://market-data.testnet.grvt.io",           326),
     "prod":    EnvConfig("prod",    "https://edge.grvt.io",                   "https://trades.grvt.io",                   "https://market-data.grvt.io",                   325),

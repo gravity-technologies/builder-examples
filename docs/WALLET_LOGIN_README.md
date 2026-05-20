@@ -86,7 +86,6 @@ cd typescript && npm install
 
 | Environment | Chain ID | Edge API                         |
 |-------------|----------|----------------------------------|
-| `dev`       | 327      | edge.dev.gravitymarkets.io       |
 | `staging`   | 327      | edge.staging.gravitymarkets.io   |
 | `testnet`   | 326      | edge.testnet.grvt.io (default)   |
 | `prod`      | 325      | edge.grvt.io                     |
@@ -141,7 +140,7 @@ npx tsx src/wallet_login.ts --env testnet --wallet-privkey "$WALLET_PRIVKEY"
 
 | Argument            | Description                                                 | Required | Default              |
 |---------------------|-------------------------------------------------------------|----------|----------------------|
-| `--env`             | Target environment (dev/staging/testnet/prod)               | No       | `testnet`            |
+| `--env`             | Target environment (staging/testnet/prod)                   | No       | `testnet`            |
 | `--wallet-privkey`  | Main wallet private key for EIP-712 signing                 | **Yes**  | None                 |
 | `--wallet-address`  | Wallet address (derived from `--wallet-privkey` if omitted) | No       | Derived from privkey |
 | `--expiration-secs` | Signature lifetime in seconds (max 300 — server enforced)   | No       | `240` (4 minutes)    |

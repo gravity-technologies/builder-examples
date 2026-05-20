@@ -17,13 +17,6 @@ export interface EnvConfig {
 }
 
 export const ENVS: Record<string, EnvConfig> = {
-  dev: {
-    name: "dev",
-    edgeBase: "https://edge.dev.gravitymarkets.io",
-    tradesBase: "https://trades.dev.gravitymarkets.io",
-    marketDataBase: "https://market-data.dev.gravitymarkets.io",
-    chainId: 327,
-  },
   staging: {
     name: "staging",
     edgeBase: "https://edge.staging.gravitymarkets.io",
