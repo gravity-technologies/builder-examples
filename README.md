@@ -156,7 +156,7 @@ npx tsx src/grvt_create_order_api.ts \
 **Key Features:**
 - Two authorization paths: with API key (`--authorize`) or without (`--authorize-only`)
 - Auto-generates builder API signer keypair if not provided
-- Multi-environment support (dev, staging, testnet, prod)
+- Multi-environment support (staging, testnet, prod)
 
 **Full Documentation:** [docs/AUTHORIZE_README.md](docs/AUTHORIZE_README.md)
 
@@ -185,7 +185,6 @@ All scripts support multiple GRVT environments:
 
 | Environment | Chain ID | Edge API                       | Trading API                      | Market Data API                       |
 |-------------|----------|--------------------------------|----------------------------------|---------------------------------------|
-| **dev**     | 327      | edge.dev.gravitymarkets.io     | trades.dev.gravitymarkets.io     | market-data.dev.gravitymarkets.io     |
 | **staging** | 327      | edge.staging.gravitymarkets.io | trades.staging.gravitymarkets.io | market-data.staging.gravitymarkets.io |
 | **testnet** | 326      | edge.testnet.grvt.io           | trades.testnet.grvt.io           | market-data.testnet.grvt.io           |
 | **prod**    | 325      | edge.grvt.io                   | trades.grvt.io                   | market-data.grvt.io                   |

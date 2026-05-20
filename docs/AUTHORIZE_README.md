@@ -40,7 +40,6 @@ These scripts demonstrate the complete flow for integrating with GRVT's Builder 
 
 The script supports multiple environments:
 
-- `dev` - Development environment (edge.dev.gravitymarkets.io)
 - `staging` - Staging environment (edge.staging.gravitymarkets.io)
 - `testnet` - Testnet environment (edge.testnet.grvt.io) **[default]**
 - `prod` - Production environment (edge.grvt.io)
@@ -115,7 +114,7 @@ This sends an `AuthorizeBuilder` chain transaction and exits without proceeding 
 
 | Argument                       | Description                                                               | Required                       | Default              |
 |--------------------------------|---------------------------------------------------------------------------|--------------------------------|----------------------|
-| `--env`                        | Target environment (dev/staging/testnet/prod)                             | No                             | `testnet`            |
+| `--env`                        | Target environment (staging/testnet/prod)                                 | No                             | `testnet`            |
 | `--api-key`                    | Existing API key to use (skips authorization)                             | Conditional*                   | None                 |
 | `--authorize`                  | Authorize builder and create an API key (with signer + permissions)       | Conditional*                   | False                |
 | `--authorize-only`             | Authorize builder on-chain without creating an API key                    | Conditional*                   | False                |
@@ -133,7 +132,7 @@ This sends an `AuthorizeBuilder` chain transaction and exits without proceeding 
 **Note on Auto-Generated Keys:** When using `--authorize` without providing `--builder-api-signer-privkey`, the script will automatically generate a new keypair and display the private key. Make sure to save this private key securely, as you'll need it to use the API key later.
 
 **Note:** The EIP-712 domain chain ID is automatically configured based on the selected environment:
-- `dev` and `staging`: chain ID 327
+- `staging`: chain ID 327
 - `testnet`: chain ID 326
 - `prod`: chain ID 325
 
@@ -170,7 +169,7 @@ When you run with `--authorize`, the script:
   "chainId": 326
 }
 ```
-*Note: chainId varies by environment (dev/staging: 327, testnet: 326, prod: 325)*
+*Note: chainId varies by environment (staging: 327, testnet: 326, prod: 325)*
 
 **Primary Type:** `AddAccountSignerWithBuilder`
 
@@ -392,12 +391,10 @@ npx tsx src/authorize.ts --env testnet --api-key "$GRVT_API_KEY"
 
 ```bash
 # Python (from python/ directory)
-python authorize.py --env dev --api-key YOUR_API_KEY
 python authorize.py --env staging --api-key YOUR_API_KEY
 python authorize.py --env prod --api-key YOUR_API_KEY
 
 # TypeScript (from typescript/ directory)
-npx tsx src/authorize.ts --env dev --api-key YOUR_API_KEY
 npx tsx src/authorize.ts --env staging --api-key YOUR_API_KEY
 npx tsx src/authorize.ts --env prod --api-key YOUR_API_KEY
 ```
@@ -424,7 +421,7 @@ When modifying this script:
 1. Ensure all address/key handling uses `_ensure_0x()` for consistency
 2. Add proper error handling with descriptive messages
 3. Update this README if you add new arguments or change behavior
-4. Test against multiple environments (dev, staging, testnet)
+4. Test against multiple environments (staging, testnet)
 
 ## License
 

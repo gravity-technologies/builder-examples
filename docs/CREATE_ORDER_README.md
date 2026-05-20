@@ -85,7 +85,7 @@ npx tsx src/grvt_create_order_api.ts \
 
 | Argument              | Required | Default                  | Description                                                            |
 |-----------------------|----------|--------------------------|------------------------------------------------------------------------|
-| `--env`               | No       | `testnet`                | GRVT environment: `dev`, `staging`, `testnet`, or `prod`               |
+| `--env`               | No       | `testnet`                | GRVT environment: `staging`, `testnet`, or `prod`                      |
 | `--api-key`           | **Yes**  | -                        | API key for authentication                                             |
 | `--private-key`       | **Yes**  | -                        | Private key for signing orders (hex format, with or without 0x prefix) |
 | `--order-file`        | No       | `create_order_data.json` | Path to order data JSON file                                           |
@@ -186,7 +186,6 @@ Submits the signed order to `/full/v1/create_order` with authenticated headers.
 
 | Environment | Chain ID | Edge API                       | Trading API                      | Market Data API                       |
 |-------------|----------|--------------------------------|----------------------------------|---------------------------------------|
-| **dev**     | 327      | edge.dev.gravitymarkets.io     | trades.dev.gravitymarkets.io     | market-data.dev.gravitymarkets.io     |
 | **staging** | 327      | edge.staging.gravitymarkets.io | trades.staging.gravitymarkets.io | market-data.staging.gravitymarkets.io |
 | **testnet** | 326      | edge.testnet.grvt.io           | trades.testnet.grvt.io           | market-data.testnet.grvt.io           |
 | **prod**    | 325      | edge.grvt.io                   | trades.grvt.io                   | market-data.grvt.io                   |
